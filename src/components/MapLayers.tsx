@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Map, Satellite, Terrain, Navigation } from 'lucide-react';
+import { Map, Satellite, Mountain, Navigation } from 'lucide-react';
 
 interface MapLayersProps {
   onLayerChange: (layerUrl: string, layerName: string) => void;
@@ -26,7 +26,7 @@ export const MapLayers = ({ onLayerChange, currentLayer }: MapLayersProps) => {
     {
       name: 'Terrain',
       url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-      icon: Terrain,
+      icon: Mountain,
       attribution: '© OpenTopoMap'
     },
     {
