@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -35,19 +36,12 @@
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -97,5 +91,52 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Leaflet custom styles */
+  .leaflet-container {
+    @apply font-sans;
+  }
+  
+  .leaflet-popup-content-wrapper {
+    @apply rounded-lg shadow-lg;
+  }
+  
+  .leaflet-popup-content {
+    @apply text-sm;
+  }
+  
+  .leaflet-control-zoom {
+    @apply border-none shadow-lg;
+  }
+  
+  .leaflet-control-zoom a {
+    @apply bg-white hover:bg-gray-50 text-gray-700 border border-gray-200;
+  }
+  
+  .leaflet-draw-toolbar {
+    @apply bg-white rounded-lg shadow-lg border border-gray-200;
+  }
+  
+  .leaflet-draw-toolbar a {
+    @apply hover:bg-gray-50 transition-colors;
+  }
+  
+  /* Custom map loading animation */
+  .map-loading {
+    @apply animate-pulse bg-gray-200;
+  }
+  
+  /* Shape highlight animation */
+  .shape-highlight {
+    @apply animate-map-pulse;
+  }
+}
+
+@layer utilities {
+  .map-controls-shadow {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   }
 }
