@@ -7,6 +7,8 @@ import { useToast } from '@/hooks/use-toast';
 import { MapControls } from '@/components/MapControls';
 import { ShapesList } from '@/components/ShapesList';
 import { SearchBar } from '@/components/SearchBar';
+import { FileUpload } from '@/components/FileUpload';
+import { MapLayers } from '@/components/MapLayers';
 
 declare global {
   interface Window {
@@ -22,9 +24,11 @@ const Index = () => {
   const mapInstanceRef = useRef<any>(null);
   const drawnItemsRef = useRef<any>(null);
   const drawControlRef = useRef<any>(null);
+  const currentTileLayerRef = useRef<any>(null);
   const [shapeName, setShapeName] = useState('');
   const [savedShapes, setSavedShapes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentMapLayer, setCurrentMapLayer] = useState('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
   const { toast } = useToast();
 
   // Supabase configuration (you'll need to connect to Supabase)
@@ -38,10 +42,12 @@ const Index = () => {
     const map = window.L.map(mapRef.current).setView([40.7128, -74.0060], 10);
     mapInstanceRef.current = map;
 
-    // Add OpenStreetMap tiles
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Add initial tile layer
+    const tileLayer = window.L.tileLayer(currentMapLayer, {
       attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+    });
+    currentTileLayerRef.current = tileLayer;
+    tileLayer.addTo(map);
 
     // Initialize drawn items layer
     const drawnItems = new window.L.FeatureGroup();
@@ -355,12 +361,74 @@ const Index = () => {
     }
   };
 
+  const handleLayerChange = (layerUrl: string, layerName: string) => {
+    if (!mapInstanceRef.current) return;
+    
+    // Remove current tile layer
+    if (currentTileLayerRef.current) {
+      mapInstanceRef.current.removeLayer(currentTileLayerRef.current);
+    }
+    
+    // Add new tile layer
+    const newLayer = window.L.tileLayer(layerUrl, {
+      attribution: layerName === 'Satellite' ? '© Esri' : 
+                   layerName === 'Terrain' ? '© OpenTopoMap' :
+                   layerName === 'Streets' ? '© CARTO' :
+                   '© OpenStreetMap contributors'
+    });
+    
+    currentTileLayerRef.current = newLayer;
+    newLayer.addTo(mapInstanceRef.current);
+    setCurrentMapLayer(layerUrl);
+    
+    toast({
+      title: "Map Layer Changed",
+      description: `Switched to ${layerName} layer`,
+    });
+  };
+
+  const handleShapefileLoad = (geoJSON: any, filename: string) => {
+    if (!mapInstanceRef.current) return;
+
+    try {
+      // Create a color for the loaded shapefile
+      const colors = ['#e11d48', '#059669', '#dc2626', '#7c3aed', '#0891b2'];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      
+      const layer = window.L.geoJSON(geoJSON, {
+        style: {
+          color: color,
+          fillColor: color,
+          fillOpacity: 0.3,
+          weight: 2
+        }
+      });
+      
+      layer.bindPopup(`<strong>Loaded File</strong><br>${filename}`);
+      layer.addTo(mapInstanceRef.current);
+      
+      // Fit map to the loaded data
+      const bounds = layer.getBounds();
+      if (bounds.isValid()) {
+        mapInstanceRef.current.fitBounds(bounds, { padding: [20, 20] });
+      }
+      
+    } catch (error) {
+      console.error('Error adding shapefile to map:', error);
+      toast({
+        title: "Display Error",
+        description: "Failed to display the shapefile on the map.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-6">
         <div className="mb-6 text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">GeoShape Capture Portal</h1>
-          <p className="text-lg text-gray-600">Draw, save, and manage geographic shapes with ease</p>
+          <p className="text-lg text-gray-600">Intuitive GIS interface for drawing, loading, and managing geographic data</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -376,6 +444,13 @@ const Index = () => {
 
           {/* Controls */}
           <div className="space-y-4">
+            <MapLayers 
+              onLayerChange={handleLayerChange}
+              currentLayer={currentMapLayer}
+            />
+            
+            <FileUpload onShapefileLoad={handleShapefileLoad} />
+            
             <MapControls
               shapeName={shapeName}
               setShapeName={setShapeName}
