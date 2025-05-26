@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -7,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { MapControls } from '@/components/MapControls';
 import { ShapesList } from '@/components/ShapesList';
+import { SearchBar } from '@/components/SearchBar';
 
 declare global {
   interface Window {
@@ -338,6 +338,23 @@ const Index = () => {
     });
   };
 
+  const handleLocationSelect = (lat: number, lng: number, name: string) => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([lat, lng], 13);
+      
+      // Add a temporary marker to show the searched location
+      const marker = window.L.marker([lat, lng])
+        .addTo(mapInstanceRef.current)
+        .bindPopup(`<strong>Search Result</strong><br>${name}`)
+        .openPopup();
+
+      // Remove the marker after 5 seconds
+      setTimeout(() => {
+        marker.remove();
+      }, 5000);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-6">
@@ -349,9 +366,12 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Map */}
           <div className="lg:col-span-3">
-            <Card className="p-4 h-[600px]">
-              <div ref={mapRef} className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" />
-            </Card>
+            <div className="space-y-4">
+              <SearchBar onLocationSelect={handleLocationSelect} />
+              <Card className="p-4 h-[600px]">
+                <div ref={mapRef} className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" />
+              </Card>
+            </div>
           </div>
 
           {/* Controls */}
