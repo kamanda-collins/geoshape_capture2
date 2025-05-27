@@ -257,7 +257,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
 
   return (
     <>
-      <style jsx>{`
+      <style>{`
         .pulsing-marker {
           background: transparent;
         }
