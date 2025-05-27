@@ -9,24 +9,202 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      comments: {
+        Row: {
+          content: string
+          created_at: string | null
+          feature_id: string | null
+          id: string
+          parent_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          feature_id?: string | null
+          id?: string
+          parent_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          feature_id?: string | null
+          id?: string
+          parent_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feature_versions: {
+        Row: {
+          change_description: string | null
+          created_at: string | null
+          feature_id: string | null
+          geo: string
+          id: string
+          user_id: string | null
+          version_number: number | null
+        }
+        Insert: {
+          change_description?: string | null
+          created_at?: string | null
+          feature_id?: string | null
+          geo: string
+          id?: string
+          user_id?: string | null
+          version_number?: number | null
+        }
+        Update: {
+          change_description?: string | null
+          created_at?: string | null
+          feature_id?: string | null
+          geo?: string
+          id?: string
+          user_id?: string | null
+          version_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_versions_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       features: {
         Row: {
+          category: string | null
           created_at: string | null
+          description: string | null
           geo: unknown | null
           id: string
           name: string | null
+          tags: string[] | null
+          updated_at: string | null
+          user_id: string | null
+          visibility: string | null
         }
         Insert: {
+          category?: string | null
           created_at?: string | null
+          description?: string | null
           geo?: unknown | null
           id?: string
           name?: string | null
+          tags?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+          visibility?: string | null
         }
         Update: {
+          category?: string | null
           created_at?: string | null
+          description?: string | null
           geo?: unknown | null
           id?: string
           name?: string | null
+          tags?: string[] | null
+          updated_at?: string | null
+          user_id?: string | null
+          visibility?: string | null
+        }
+        Relationships: []
+      }
+      feedback: {
+        Row: {
+          category: string | null
+          comment: string | null
+          created_at: string | null
+          feature_id: string | null
+          id: string
+          rating: number | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          comment?: string | null
+          created_at?: string | null
+          feature_id?: string | null
+          id?: string
+          rating?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          comment?: string | null
+          created_at?: string | null
+          feature_id?: string | null
+          id?: string
+          rating?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          full_name: string | null
+          id: string
+          organization: string | null
+          role: string | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id: string
+          organization?: string | null
+          role?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          full_name?: string | null
+          id?: string
+          organization?: string | null
+          role?: string | null
+          updated_at?: string | null
+          username?: string | null
         }
         Relationships: []
       }
