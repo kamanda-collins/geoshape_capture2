@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,13 +21,14 @@ const IndexContent = () => {
   const [currentShape, setCurrentShape] = useState<any>(null);
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState('map');
+  const [searchLocation, setSearchLocation] = useState<{lat: number; lng: number; name: string; boundingBox?: number[]} | undefined>();
   
   const { user, signOut } = useAuth();
   const { features } = useFeatures();
 
-  const handleLocationSelect = (lat: number, lng: number, name: string) => {
-    // This would interact with the map - implement as needed
-    console.log('Location selected:', { lat, lng, name });
+  const handleLocationSelect = (lat: number, lng: number, name: string, boundingBox?: number[]) => {
+    console.log('Location selected:', { lat, lng, name, boundingBox });
+    setSearchLocation({ lat, lng, name, boundingBox });
   };
 
   const handleLayerChange = (layerUrl: string, layerName: string) => {
@@ -113,6 +113,7 @@ const IndexContent = () => {
                       features={features}
                       currentMapLayer={currentMapLayer}
                       onLayerChange={handleLayerChange}
+                      searchLocation={searchLocation}
                     />
                   </Card>
                 </div>

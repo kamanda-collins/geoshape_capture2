@@ -13,18 +13,21 @@ interface MapContainerProps {
   features: any[];
   currentMapLayer: string;
   onLayerChange: (layerUrl: string, layerName: string) => void;
+  searchLocation?: { lat: number; lng: number; name: string; boundingBox?: number[] };
 }
 
 export const MapContainer: React.FC<MapContainerProps> = ({
   onShapeCreated,
   features,
   currentMapLayer,
-  onLayerChange
+  onLayerChange,
+  searchLocation
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const drawnItemsRef = useRef<any>(null);
   const currentTileLayerRef = useRef<any>(null);
+  const highlightLayerRef = useRef<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,6 +48,11 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     const drawnItems = new window.L.FeatureGroup();
     drawnItemsRef.current = drawnItems;
     map.addLayer(drawnItems);
+
+    // Initialize highlight layer
+    const highlightLayer = new window.L.FeatureGroup();
+    highlightLayerRef.current = highlightLayer;
+    map.addLayer(highlightLayer);
 
     // Initialize draw control
     const drawControl = new window.L.Control.Draw({
@@ -80,7 +88,12 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           }
         },
         marker: true,
-        polyline: false,
+        polyline: {
+          shapeOptions: {
+            color: '#3b82f6',
+            weight: 3
+          }
+        },
         circlemarker: false
       }
     });
@@ -105,6 +118,93 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       }
     };
   }, []);
+
+  // Handle search location highlighting
+  useEffect(() => {
+    if (!searchLocation || !mapInstanceRef.current || !highlightLayerRef.current) return;
+
+    const { lat, lng, name, boundingBox } = searchLocation;
+    
+    // Clear previous highlights
+    highlightLayerRef.current.clearLayers();
+
+    if (boundingBox && boundingBox.length === 4) {
+      // Create bounding box highlight
+      const [south, north, west, east] = boundingBox;
+      const bounds = [[south, west], [north, east]];
+      
+      // Create highlight rectangle
+      const highlight = window.L.rectangle(bounds, {
+        color: '#ff6b35',
+        weight: 3,
+        fillColor: '#ff6b35',
+        fillOpacity: 0.2,
+        dashArray: '10, 10'
+      });
+      
+      highlightLayerRef.current.addLayer(highlight);
+      
+      // Fit map to bounds with padding
+      mapInstanceRef.current.fitBounds(bounds, { 
+        padding: [20, 20],
+        maxZoom: 16 
+      });
+      
+      // Remove highlight after 4 seconds
+      setTimeout(() => {
+        if (highlightLayerRef.current) {
+          highlightLayerRef.current.clearLayers();
+        }
+      }, 4000);
+    } else {
+      // Create point highlight with pulsing circle
+      const highlight = window.L.circle([lat, lng], {
+        color: '#ff6b35',
+        fillColor: '#ff6b35',
+        fillOpacity: 0.3,
+        radius: 1000,
+        weight: 3
+      });
+      
+      highlightLayerRef.current.addLayer(highlight);
+      
+      // Add pulsing marker
+      const pulsingMarker = window.L.marker([lat, lng], {
+        icon: window.L.divIcon({
+          className: 'pulsing-marker',
+          html: '<div class="pulse"></div>',
+          iconSize: [20, 20]
+        })
+      });
+      
+      highlightLayerRef.current.addLayer(pulsingMarker);
+      
+      // Center map on location
+      mapInstanceRef.current.setView([lat, lng], 14, {
+        animate: true,
+        duration: 1
+      });
+      
+      // Remove highlight after 4 seconds
+      setTimeout(() => {
+        if (highlightLayerRef.current) {
+          highlightLayerRef.current.clearLayers();
+        }
+      }, 4000);
+    }
+
+    // Add location popup
+    const popup = window.L.popup()
+      .setLatLng([lat, lng])
+      .setContent(`<strong>${name}</strong>`)
+      .openOn(mapInstanceRef.current);
+
+    // Remove popup after 3 seconds
+    setTimeout(() => {
+      mapInstanceRef.current.closePopup(popup);
+    }, 3000);
+
+  }, [searchLocation]);
 
   // Handle layer changes
   useEffect(() => {
@@ -156,9 +256,47 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   }, [features]);
 
   return (
-    <div 
-      ref={mapRef} 
-      className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
-    />
+    <>
+      <style jsx>{`
+        .pulsing-marker {
+          background: transparent;
+        }
+        .pulse {
+          background: #ff6b35;
+          border-radius: 50%;
+          height: 20px;
+          width: 20px;
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          animation: pulse 2s infinite;
+        }
+        .pulse:before {
+          content: '';
+          position: absolute;
+          background: #ff6b35;
+          border-radius: 50%;
+          height: 100%;
+          width: 100%;
+          animation: pulse 2s infinite;
+          animation-delay: 0.3s;
+        }
+        @keyframes pulse {
+          0% {
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 1;
+          }
+          100% {
+            transform: translate(-50%, -50%) scale(2.5);
+            opacity: 0;
+          }
+        }
+      `}</style>
+      <div 
+        ref={mapRef} 
+        className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
+      />
+    </>
   );
 };
