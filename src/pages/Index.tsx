@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,12 +7,11 @@ import { User, LogOut, BarChart3 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/components/Auth/AuthProvider';
 import { AuthModal } from '@/components/Auth/AuthModal';
 import { MapContainer } from '@/components/Map/MapContainer';
+import { MapCreator } from '@/components/Map/MapCreator';
 import { MapLayers } from '@/components/MapLayers';
 import { SearchBar } from '@/components/SearchBar';
 import { FileUpload } from '@/components/FileUpload';
-import { FeatureManager } from '@/components/Features/FeatureManager';
 import { FeedbackPanel } from '@/components/Feedback/FeedbackPanel';
-import { ExportTools } from '@/components/Export/ExportTools';
 import { AnalyticsDashboard } from '@/components/Analytics/AnalyticsDashboard';
 import { useFeatures } from '@/hooks/useFeatures';
 
@@ -19,7 +19,6 @@ const IndexContent = () => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [currentMapLayer, setCurrentMapLayer] = useState('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
   const [currentShape, setCurrentShape] = useState<any>(null);
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string | undefined>();
   const [activeTab, setActiveTab] = useState('map');
   const [searchLocation, setSearchLocation] = useState<{lat: number; lng: number; name: string; boundingBox?: number[]} | undefined>();
   
@@ -36,7 +35,8 @@ const IndexContent = () => {
   };
 
   const handleShapefileLoad = (geoJSON: any, filename: string) => {
-    // This would add the shapefile to the map - implement as needed
+    // Load shapefile as the current shape
+    setCurrentShape(geoJSON);
     console.log('Shapefile loaded:', { geoJSON, filename });
   };
 
@@ -44,7 +44,7 @@ const IndexContent = () => {
     setCurrentShape(geoJSON);
   };
 
-  const handleShapeSaved = () => {
+  const handleClearShape = () => {
     setCurrentShape(null);
   };
 
@@ -62,8 +62,8 @@ const IndexContent = () => {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">GeoShape Feedback Portal</h1>
-            <p className="text-lg text-gray-600">Collaborative GIS platform for collecting and managing geographic data feedback</p>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">GeoShape Map Creator</h1>
+            <p className="text-lg text-gray-600">Create, edit, and export custom maps with ease</p>
           </div>
           
           <div className="flex items-center gap-2">
@@ -97,8 +97,8 @@ const IndexContent = () => {
         {/* Main Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="map">Map & Features</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="map">Map Creator</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics & Feedback</TabsTrigger>
           </TabsList>
           
           <TabsContent value="map">
@@ -128,22 +128,20 @@ const IndexContent = () => {
                 
                 <FileUpload onShapefileLoad={handleShapefileLoad} />
                 
-                <FeatureManager
+                <MapCreator
                   currentShape={currentShape}
-                  onShapeSaved={handleShapeSaved}
+                  searchLocation={searchLocation}
+                  onClearShape={handleClearShape}
                 />
-                
-                {selectedFeatureId && (
-                  <FeedbackPanel featureId={selectedFeatureId} />
-                )}
-                
-                <ExportTools />
               </div>
             </div>
           </TabsContent>
           
           <TabsContent value="analytics">
-            <AnalyticsDashboard />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <AnalyticsDashboard />
+              <FeedbackPanel featureId="general" />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

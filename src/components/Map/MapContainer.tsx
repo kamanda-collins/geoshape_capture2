@@ -28,6 +28,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   const drawnItemsRef = useRef<any>(null);
   const currentTileLayerRef = useRef<any>(null);
   const highlightLayerRef = useRef<any>(null);
+  const searchMarkersRef = useRef<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,12 +50,17 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     drawnItemsRef.current = drawnItems;
     map.addLayer(drawnItems);
 
-    // Initialize highlight layer
+    // Initialize highlight layer for search results
     const highlightLayer = new window.L.FeatureGroup();
     highlightLayerRef.current = highlightLayer;
     map.addLayer(highlightLayer);
 
-    // Initialize draw control
+    // Initialize search markers layer (separate from highlights)
+    const searchMarkers = new window.L.FeatureGroup();
+    searchMarkersRef.current = searchMarkers;
+    map.addLayer(searchMarkers);
+
+    // Initialize draw control with more flexible polygon settings
     const drawControl = new window.L.Control.Draw({
       edit: {
         featureGroup: drawnItems,
@@ -62,16 +68,21 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       },
       draw: {
         polygon: {
-          allowIntersection: false,
+          allowIntersection: true, // Allow self-intersecting polygons
           drawError: {
             color: '#e1e100',
-            message: '<strong>Error:</strong> Shape edges cannot cross!'
+            message: '<strong>Note:</strong> You can draw any shape you want!'
           },
           shapeOptions: {
             color: '#3b82f6',
             fillColor: '#93c5fd',
-            fillOpacity: 0.3
-          }
+            fillOpacity: 0.3,
+            weight: 2
+          },
+          showArea: true, // Show area measurements
+          metric: true, // Use metric units
+          feet: false, // Disable imperial units
+          repeatMode: false // Don't automatically start a new polygon
         },
         rectangle: {
           shapeOptions: {
@@ -99,6 +110,14 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     });
     map.addControl(drawControl);
 
+    // Add map controls (scale, compass, etc.)
+    // Scale control
+    window.L.control.scale({
+      position: 'bottomleft',
+      metric: true,
+      imperial: true
+    }).addTo(map);
+
     // Handle drawing events
     map.on(window.L.Draw.Event.CREATED, (event: any) => {
       const layer = event.layer;
@@ -108,7 +127,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       
       toast({
         title: "Shape Created",
-        description: "Your shape has been drawn. Give it a name and save it!",
+        description: "Your area has been drawn. You can now export it as a map!",
       });
     });
 
@@ -121,19 +140,20 @@ export const MapContainer: React.FC<MapContainerProps> = ({
 
   // Handle search location highlighting
   useEffect(() => {
-    if (!searchLocation || !mapInstanceRef.current || !highlightLayerRef.current) return;
+    if (!searchLocation || !mapInstanceRef.current || !highlightLayerRef.current || !searchMarkersRef.current) return;
 
     const { lat, lng, name, boundingBox } = searchLocation;
     
-    // Clear previous highlights
+    // Clear previous highlights and markers
     highlightLayerRef.current.clearLayers();
+    searchMarkersRef.current.clearLayers();
 
     if (boundingBox && boundingBox.length === 4) {
-      // Create bounding box highlight
+      // Create bounding box highlight that disappears after 4 seconds
       const [south, north, west, east] = boundingBox;
       const bounds = [[south, west], [north, east]];
       
-      // Create highlight rectangle
+      // Create temporary highlight rectangle
       const highlight = window.L.rectangle(bounds, {
         color: '#ff6b35',
         weight: 3,
@@ -143,6 +163,18 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       });
       
       highlightLayerRef.current.addLayer(highlight);
+      
+      // Add a permanent marker for the location
+      const permanentMarker = window.L.marker([lat, lng], {
+        icon: window.L.divIcon({
+          className: 'search-location-marker',
+          html: `<div class="marker-pin"></div><div class="marker-label">${name}</div>`,
+          iconSize: [120, 40],
+          iconAnchor: [60, 40]
+        })
+      });
+      
+      searchMarkersRef.current.addLayer(permanentMarker);
       
       // Fit map to bounds with padding
       mapInstanceRef.current.fitBounds(bounds, { 
@@ -168,16 +200,17 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       
       highlightLayerRef.current.addLayer(highlight);
       
-      // Add pulsing marker
-      const pulsingMarker = window.L.marker([lat, lng], {
+      // Add permanent marker
+      const permanentMarker = window.L.marker([lat, lng], {
         icon: window.L.divIcon({
-          className: 'pulsing-marker',
-          html: '<div class="pulse"></div>',
-          iconSize: [20, 20]
+          className: 'search-location-marker',
+          html: `<div class="marker-pin"></div><div class="marker-label">${name}</div>`,
+          iconSize: [120, 40],
+          iconAnchor: [60, 40]
         })
       });
       
-      highlightLayerRef.current.addLayer(pulsingMarker);
+      searchMarkersRef.current.addLayer(permanentMarker);
       
       // Center map on location
       mapInstanceRef.current.setView([lat, lng], 14, {
@@ -192,17 +225,6 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         }
       }, 4000);
     }
-
-    // Add location popup
-    const popup = window.L.popup()
-      .setLatLng([lat, lng])
-      .setContent(`<strong>${name}</strong>`)
-      .openOn(mapInstanceRef.current);
-
-    // Remove popup after 3 seconds
-    setTimeout(() => {
-      mapInstanceRef.current.closePopup(popup);
-    }, 3000);
 
   }, [searchLocation]);
 
@@ -222,7 +244,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     newLayer.addTo(mapInstanceRef.current);
   }, [currentMapLayer]);
 
-  // Display features on map
+  // Display saved features on map (this is the old system - we can simplify this)
   useEffect(() => {
     if (!mapInstanceRef.current || !features.length) return;
 
@@ -258,10 +280,10 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   return (
     <>
       <style>{`
-        .pulsing-marker {
+        .search-location-marker {
           background: transparent;
         }
-        .pulse {
+        .marker-pin {
           background: #ff6b35;
           border-radius: 50%;
           height: 20px;
@@ -270,27 +292,32 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           left: 50%;
           top: 50%;
           transform: translate(-50%, -50%);
-          animation: pulse 2s infinite;
+          border: 3px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
-        .pulse:before {
+        .marker-label {
+          background: white;
+          border: 2px solid #ff6b35;
+          border-radius: 4px;
+          color: #333;
+          font-size: 12px;
+          font-weight: bold;
+          padding: 2px 6px;
+          position: absolute;
+          top: -35px;
+          left: 50%;
+          transform: translateX(-50%);
+          white-space: nowrap;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        .marker-label:after {
           content: '';
           position: absolute;
-          background: #ff6b35;
-          border-radius: 50%;
-          height: 100%;
-          width: 100%;
-          animation: pulse 2s infinite;
-          animation-delay: 0.3s;
-        }
-        @keyframes pulse {
-          0% {
-            transform: translate(-50%, -50%) scale(0);
-            opacity: 1;
-          }
-          100% {
-            transform: translate(-50%, -50%) scale(2.5);
-            opacity: 0;
-          }
+          top: 100%;
+          left: 50%;
+          margin-left: -5px;
+          border: 5px solid transparent;
+          border-top-color: #ff6b35;
         }
       `}</style>
       <div 
