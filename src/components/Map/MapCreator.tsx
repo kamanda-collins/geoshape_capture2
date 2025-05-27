@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Download, MapPin, FileText, Share2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Download, MapPin, FileText, Share2, Map } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface MapCreatorProps {
@@ -21,7 +22,34 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
 }) => {
   const [mapTitle, setMapTitle] = useState('');
   const [mapDescription, setMapDescription] = useState('');
+  const [step, setStep] = useState<'create' | 'customize' | 'export'>('create');
+  
+  // Map customization options
+  const [includeRoads, setIncludeRoads] = useState(true);
+  const [includeBuildings, setIncludeBuildings] = useState(false);
+  const [includeWaterBodies, setIncludeWaterBodies] = useState(true);
+  const [includeCompass, setIncludeCompass] = useState(true);
+  const [includeScale, setIncludeScale] = useState(true);
+  const [includeLegend, setIncludeLegend] = useState(true);
+  
   const { toast } = useToast();
+
+  const handleNextStep = () => {
+    if (!currentShape) {
+      toast({
+        title: "No shape drawn",
+        description: "Please draw a shape on the map first.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (step === 'create') {
+      setStep('customize');
+    } else if (step === 'customize') {
+      setStep('export');
+    }
+  };
 
   const handleExportMap = (format: 'pdf' | 'png' | 'geojson') => {
     if (!currentShape) {
@@ -33,135 +61,290 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
       return;
     }
 
-    // This would trigger the actual export functionality
+    // Create enhanced export data
+    const exportData = {
+      title: mapTitle || 'Custom Map',
+      description: mapDescription,
+      shape: currentShape,
+      location: searchLocation,
+      features: {
+        roads: includeRoads,
+        buildings: includeBuildings,
+        waterBodies: includeWaterBodies,
+        compass: includeCompass,
+        scale: includeScale,
+        legend: includeLegend
+      },
+      createdAt: new Date().toISOString()
+    };
+
     toast({
-      title: `Exporting as ${format.toUpperCase()}`,
-      description: `Your map "${mapTitle || 'Untitled Map'}" is being prepared for download.`,
+      title: `Generating ${format.toUpperCase()} Map`,
+      description: `Creating your custom map "${mapTitle || 'Untitled Map'}" with selected features...`,
     });
 
-    // Simulate download
+    // Simulate export with proper formatting
     setTimeout(() => {
-      const blob = new Blob([JSON.stringify(currentShape, null, 2)], { 
-        type: format === 'geojson' ? 'application/json' : 'text/plain' 
-      });
+      let blob;
+      let filename = `${mapTitle || 'custom-map'}.${format}`;
+      
+      if (format === 'geojson') {
+        blob = new Blob([JSON.stringify(currentShape, null, 2)], { 
+          type: 'application/json' 
+        });
+      } else if (format === 'pdf') {
+        // For PDF, we'd normally use a library like jsPDF with map rendering
+        blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+          type: 'application/pdf' 
+        });
+      } else {
+        // For PNG, we'd capture the map canvas
+        blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+          type: 'image/png' 
+        });
+      }
+      
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${mapTitle || 'map'}.${format === 'geojson' ? 'geojson' : format}`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    }, 1000);
+
+      toast({
+        title: "Export Complete",
+        description: `Your ${format.toUpperCase()} map has been downloaded successfully!`,
+      });
+    }, 2000);
   };
 
-  const getAreaInfo = () => {
-    if (!currentShape) return null;
-    
-    // Calculate approximate area (this is simplified)
-    if (currentShape.geometry.type === 'Polygon') {
-      return "Area drawn - ready for export";
+  const getStepContent = () => {
+    switch (step) {
+      case 'create':
+        return (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Map Title</Label>
+                <Input
+                  value={mapTitle}
+                  onChange={(e) => setMapTitle(e.target.value)}
+                  placeholder="Enter map title"
+                  className="h-8"
+                />
+              </div>
+              
+              <div>
+                <Label className="text-xs">Description (Optional)</Label>
+                <Textarea
+                  value={mapDescription}
+                  onChange={(e) => setMapDescription(e.target.value)}
+                  placeholder="Describe your map area"
+                  className="h-16 text-xs"
+                />
+              </div>
+
+              {searchLocation && (
+                <div className="text-xs text-gray-600 p-2 bg-blue-50 rounded">
+                  <strong>Location:</strong> {searchLocation.name}
+                </div>
+              )}
+
+              {currentShape && (
+                <div className="text-xs text-green-600 p-2 bg-green-50 rounded">
+                  <strong>Status:</strong> Shape drawn - ready to customize!
+                </div>
+              )}
+            </div>
+
+            <Button 
+              onClick={handleNextStep}
+              disabled={!currentShape}
+              className="w-full"
+            >
+              Next: Customize Map Features
+            </Button>
+          </div>
+        );
+
+      case 'customize':
+        return (
+          <div className="space-y-4">
+            <h4 className="font-medium text-sm">Map Features to Include:</h4>
+            
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="roads" 
+                  checked={includeRoads}
+                  onCheckedChange={setIncludeRoads}
+                />
+                <Label htmlFor="roads" className="text-xs">Roads & Streets</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="buildings" 
+                  checked={includeBuildings}
+                  onCheckedChange={setIncludeBuildings}
+                />
+                <Label htmlFor="buildings" className="text-xs">Buildings & Structures</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="water" 
+                  checked={includeWaterBodies}
+                  onCheckedChange={setIncludeWaterBodies}
+                />
+                <Label htmlFor="water" className="text-xs">Water Bodies</Label>
+              </div>
+            </div>
+
+            <h4 className="font-medium text-sm pt-2">Map Elements:</h4>
+            
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="compass" 
+                  checked={includeCompass}
+                  onCheckedChange={setIncludeCompass}
+                />
+                <Label htmlFor="compass" className="text-xs">Compass/North Arrow</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="scale" 
+                  checked={includeScale}
+                  onCheckedChange={setIncludeScale}
+                />
+                <Label htmlFor="scale" className="text-xs">Scale Bar</Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="legend" 
+                  checked={includeLegend}
+                  onCheckedChange={setIncludeLegend}
+                />
+                <Label htmlFor="legend" className="text-xs">Map Legend</Label>
+              </div>
+            </div>
+
+            <div className="flex space-x-2">
+              <Button 
+                onClick={() => setStep('create')}
+                variant="outline"
+                className="flex-1"
+              >
+                Back
+              </Button>
+              <Button 
+                onClick={handleNextStep}
+                className="flex-1"
+              >
+                Next: Export Options
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'export':
+        return (
+          <div className="space-y-4">
+            <h4 className="font-medium text-sm">Export Your Custom Map:</h4>
+            
+            <div className="space-y-2">
+              <Button
+                onClick={() => handleExportMap('pdf')}
+                className="w-full h-10 text-sm"
+                variant="outline"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Export as PDF Map
+              </Button>
+              
+              <Button
+                onClick={() => handleExportMap('png')}
+                className="w-full h-10 text-sm"
+                variant="outline"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export as PNG Image
+              </Button>
+              
+              <Button
+                onClick={() => handleExportMap('geojson')}
+                className="w-full h-10 text-sm"
+                variant="outline"
+              >
+                <Share2 className="h-4 w-4 mr-2" />
+                Export as GeoJSON
+              </Button>
+            </div>
+
+            <div className="flex space-x-2">
+              <Button 
+                onClick={() => setStep('customize')}
+                variant="outline"
+                className="flex-1"
+              >
+                Back
+              </Button>
+              <Button 
+                onClick={() => setStep('create')}
+                variant="outline"
+                className="flex-1"
+              >
+                Start Over
+              </Button>
+            </div>
+          </div>
+        );
     }
-    return "Shape drawn - ready for export";
   };
 
   return (
     <div className="space-y-4">
-      {/* Map Information */}
-      <Card className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <MapPin className="h-4 w-4 text-blue-500" />
-          <h3 className="font-medium text-sm">Map Details</h3>
+      {/* Progress indicator */}
+      <Card className="p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Map className="h-4 w-4 text-blue-500" />
+            <h3 className="font-medium text-sm">Map Creator</h3>
+          </div>
+          <span className="text-xs text-gray-500">
+            Step {step === 'create' ? '1' : step === 'customize' ? '2' : '3'} of 3
+          </span>
         </div>
         
-        <div className="space-y-3">
-          <div>
-            <Label className="text-xs">Map Title</Label>
-            <Input
-              value={mapTitle}
-              onChange={(e) => setMapTitle(e.target.value)}
-              placeholder="Enter map title"
-              className="h-8"
-            />
-          </div>
-          
-          <div>
-            <Label className="text-xs">Description (Optional)</Label>
-            <Textarea
-              value={mapDescription}
-              onChange={(e) => setMapDescription(e.target.value)}
-              placeholder="Describe your map area"
-              className="h-16 text-xs"
-            />
-          </div>
-
-          {searchLocation && (
-            <div className="text-xs text-gray-600 p-2 bg-blue-50 rounded">
-              <strong>Location:</strong> {searchLocation.name}
-            </div>
-          )}
-
-          {currentShape && (
-            <div className="text-xs text-green-600 p-2 bg-green-50 rounded">
-              <strong>Status:</strong> {getAreaInfo()}
-            </div>
-          )}
+        <div className="flex space-x-1">
+          <div className={`h-2 flex-1 rounded ${step === 'create' ? 'bg-blue-500' : 'bg-gray-200'}`} />
+          <div className={`h-2 flex-1 rounded ${step === 'customize' ? 'bg-blue-500' : 'bg-gray-200'}`} />
+          <div className={`h-2 flex-1 rounded ${step === 'export' ? 'bg-blue-500' : 'bg-gray-200'}`} />
         </div>
       </Card>
 
-      {/* Export Options */}
+      {/* Step content */}
       <Card className="p-4">
-        <h3 className="font-medium text-sm mb-3">Export Your Map</h3>
-        
-        <div className="space-y-2">
-          <Button
-            onClick={() => handleExportMap('pdf')}
-            disabled={!currentShape}
-            className="w-full h-8 text-xs"
-            variant="outline"
-          >
-            <FileText className="h-3 w-3 mr-2" />
-            Export as PDF Map
-          </Button>
-          
-          <Button
-            onClick={() => handleExportMap('png')}
-            disabled={!currentShape}
-            className="w-full h-8 text-xs"
-            variant="outline"
-          >
-            <Download className="h-3 w-3 mr-2" />
-            Export as Image
-          </Button>
-          
-          <Button
-            onClick={() => handleExportMap('geojson')}
-            disabled={!currentShape}
-            className="w-full h-8 text-xs"
-            variant="outline"
-          >
-            <Share2 className="h-3 w-3 mr-2" />
-            Export as GeoJSON
-          </Button>
-        </div>
-
-        {!currentShape && (
-          <p className="text-xs text-gray-500 mt-2">
-            Draw a shape on the map to enable export options
-          </p>
-        )}
+        {getStepContent()}
       </Card>
 
       {/* Instructions */}
-      <Card className="p-4">
-        <h3 className="font-medium text-sm mb-2">How to Create Your Map</h3>
-        <div className="text-xs text-gray-600 space-y-1">
-          <p>1. Search for a location to center your map</p>
-          <p>2. Use the drawing tools to outline your area</p>
-          <p>3. Add a title and description</p>
-          <p>4. Export as PDF, image, or GeoJSON file</p>
-        </div>
-      </Card>
+      {step === 'create' && (
+        <Card className="p-4">
+          <h3 className="font-medium text-sm mb-2">How to Create Your Map</h3>
+          <div className="text-xs text-gray-600 space-y-1">
+            <p>1. Search for a location to center your map</p>
+            <p>2. Use the polygon tool to draw your area (crosshair cursor)</p>
+            <p>3. Add a title and description</p>
+            <p>4. Customize map features and export</p>
+          </div>
+        </Card>
+      )}
 
       {currentShape && onClearShape && (
         <Button

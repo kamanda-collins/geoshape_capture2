@@ -1,6 +1,8 @@
 
 import React, { useRef, useEffect } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { MapControls } from './MapControls';
+import { MapLayersManager } from './MapLayers';
+import { SearchLocationHandler } from './SearchLocationHandler';
 
 declare global {
   interface Window {
@@ -25,11 +27,6 @@ export const MapContainer: React.FC<MapContainerProps> = ({
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const drawnItemsRef = useRef<any>(null);
-  const currentTileLayerRef = useRef<any>(null);
-  const highlightLayerRef = useRef<any>(null);
-  const searchMarkersRef = useRef<any>(null);
-  const { toast } = useToast();
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -38,99 +35,6 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     const map = window.L.map(mapRef.current).setView([40.7128, -74.0060], 10);
     mapInstanceRef.current = map;
 
-    // Add initial tile layer
-    const tileLayer = window.L.tileLayer(currentMapLayer, {
-      attribution: '© OpenStreetMap contributors'
-    });
-    currentTileLayerRef.current = tileLayer;
-    tileLayer.addTo(map);
-
-    // Initialize drawn items layer
-    const drawnItems = new window.L.FeatureGroup();
-    drawnItemsRef.current = drawnItems;
-    map.addLayer(drawnItems);
-
-    // Initialize highlight layer for search results
-    const highlightLayer = new window.L.FeatureGroup();
-    highlightLayerRef.current = highlightLayer;
-    map.addLayer(highlightLayer);
-
-    // Initialize search markers layer (separate from highlights)
-    const searchMarkers = new window.L.FeatureGroup();
-    searchMarkersRef.current = searchMarkers;
-    map.addLayer(searchMarkers);
-
-    // Initialize draw control with more flexible polygon settings
-    const drawControl = new window.L.Control.Draw({
-      edit: {
-        featureGroup: drawnItems,
-        remove: true
-      },
-      draw: {
-        polygon: {
-          allowIntersection: true, // Allow self-intersecting polygons
-          drawError: {
-            color: '#e1e100',
-            message: '<strong>Note:</strong> You can draw any shape you want!'
-          },
-          shapeOptions: {
-            color: '#3b82f6',
-            fillColor: '#93c5fd',
-            fillOpacity: 0.3,
-            weight: 2
-          },
-          showArea: true, // Show area measurements
-          metric: true, // Use metric units
-          feet: false, // Disable imperial units
-          repeatMode: false // Don't automatically start a new polygon
-        },
-        rectangle: {
-          shapeOptions: {
-            color: '#3b82f6',
-            fillColor: '#93c5fd',
-            fillOpacity: 0.3
-          }
-        },
-        circle: {
-          shapeOptions: {
-            color: '#3b82f6',
-            fillColor: '#93c5fd',
-            fillOpacity: 0.3
-          }
-        },
-        marker: true,
-        polyline: {
-          shapeOptions: {
-            color: '#3b82f6',
-            weight: 3
-          }
-        },
-        circlemarker: false
-      }
-    });
-    map.addControl(drawControl);
-
-    // Add map controls (scale, compass, etc.)
-    // Scale control
-    window.L.control.scale({
-      position: 'bottomleft',
-      metric: true,
-      imperial: true
-    }).addTo(map);
-
-    // Handle drawing events
-    map.on(window.L.Draw.Event.CREATED, (event: any) => {
-      const layer = event.layer;
-      drawnItems.addLayer(layer);
-      const geoJSON = layer.toGeoJSON();
-      onShapeCreated(geoJSON);
-      
-      toast({
-        title: "Shape Created",
-        description: "Your area has been drawn. You can now export it as a map!",
-      });
-    });
-
     return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
@@ -138,113 +42,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     };
   }, []);
 
-  // Handle search location highlighting
-  useEffect(() => {
-    if (!searchLocation || !mapInstanceRef.current || !highlightLayerRef.current || !searchMarkersRef.current) return;
-
-    const { lat, lng, name, boundingBox } = searchLocation;
-    
-    // Clear previous highlights and markers
-    highlightLayerRef.current.clearLayers();
-    searchMarkersRef.current.clearLayers();
-
-    if (boundingBox && boundingBox.length === 4) {
-      // Create bounding box highlight that disappears after 4 seconds
-      const [south, north, west, east] = boundingBox;
-      const bounds = [[south, west], [north, east]];
-      
-      // Create temporary highlight rectangle
-      const highlight = window.L.rectangle(bounds, {
-        color: '#ff6b35',
-        weight: 3,
-        fillColor: '#ff6b35',
-        fillOpacity: 0.2,
-        dashArray: '10, 10'
-      });
-      
-      highlightLayerRef.current.addLayer(highlight);
-      
-      // Add a permanent marker for the location
-      const permanentMarker = window.L.marker([lat, lng], {
-        icon: window.L.divIcon({
-          className: 'search-location-marker',
-          html: `<div class="marker-pin"></div><div class="marker-label">${name}</div>`,
-          iconSize: [120, 40],
-          iconAnchor: [60, 40]
-        })
-      });
-      
-      searchMarkersRef.current.addLayer(permanentMarker);
-      
-      // Fit map to bounds with padding
-      mapInstanceRef.current.fitBounds(bounds, { 
-        padding: [20, 20],
-        maxZoom: 16 
-      });
-      
-      // Remove highlight after 4 seconds
-      setTimeout(() => {
-        if (highlightLayerRef.current) {
-          highlightLayerRef.current.clearLayers();
-        }
-      }, 4000);
-    } else {
-      // Create point highlight with pulsing circle
-      const highlight = window.L.circle([lat, lng], {
-        color: '#ff6b35',
-        fillColor: '#ff6b35',
-        fillOpacity: 0.3,
-        radius: 1000,
-        weight: 3
-      });
-      
-      highlightLayerRef.current.addLayer(highlight);
-      
-      // Add permanent marker
-      const permanentMarker = window.L.marker([lat, lng], {
-        icon: window.L.divIcon({
-          className: 'search-location-marker',
-          html: `<div class="marker-pin"></div><div class="marker-label">${name}</div>`,
-          iconSize: [120, 40],
-          iconAnchor: [60, 40]
-        })
-      });
-      
-      searchMarkersRef.current.addLayer(permanentMarker);
-      
-      // Center map on location
-      mapInstanceRef.current.setView([lat, lng], 14, {
-        animate: true,
-        duration: 1
-      });
-      
-      // Remove highlight after 4 seconds
-      setTimeout(() => {
-        if (highlightLayerRef.current) {
-          highlightLayerRef.current.clearLayers();
-        }
-      }, 4000);
-    }
-
-  }, [searchLocation]);
-
-  // Handle layer changes
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    
-    if (currentTileLayerRef.current) {
-      mapInstanceRef.current.removeLayer(currentTileLayerRef.current);
-    }
-    
-    const newLayer = window.L.tileLayer(currentMapLayer, {
-      attribution: '© OpenStreetMap contributors'
-    });
-    
-    currentTileLayerRef.current = newLayer;
-    newLayer.addTo(mapInstanceRef.current);
-  }, [currentMapLayer]);
-
-  // Display saved features on map (this is the old system - we can simplify this)
+  // Display saved features on map
   useEffect(() => {
     if (!mapInstanceRef.current || !features.length) return;
 
@@ -319,10 +117,31 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           border: 5px solid transparent;
           border-top-color: #ff6b35;
         }
+        .crosshair-cursor {
+          cursor: crosshair !important;
+        }
+        .leaflet-draw-toolbar a {
+          cursor: pointer !important;
+        }
+        .leaflet-draw-draw-polygon {
+          cursor: crosshair !important;
+        }
       `}</style>
       <div 
         ref={mapRef} 
         className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
+      />
+      <MapControls 
+        map={mapInstanceRef.current} 
+        onShapeCreated={onShapeCreated} 
+      />
+      <MapLayersManager 
+        map={mapInstanceRef.current} 
+        currentMapLayer={currentMapLayer} 
+      />
+      <SearchLocationHandler 
+        map={mapInstanceRef.current} 
+        searchLocation={searchLocation} 
       />
     </>
   );
