@@ -29,15 +29,42 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   const mapInstanceRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !window.L) {
+      console.error('Map container or Leaflet not available');
+      return;
+    }
 
-    // Initialize map
-    const map = window.L.map(mapRef.current).setView([40.7128, -74.0060], 10);
-    mapInstanceRef.current = map;
+    // Clear any existing map
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+    }
+
+    try {
+      // Initialize map with proper settings
+      const map = window.L.map(mapRef.current, {
+        center: [40.7128, -74.0060],
+        zoom: 10,
+        zoomControl: true,
+        attributionControl: true
+      });
+
+      // Add default OpenStreetMap tile layer
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(map);
+
+      mapInstanceRef.current = map;
+      console.log('Map initialized successfully');
+
+    } catch (error) {
+      console.error('Error initializing map:', error);
+    }
 
     return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
       }
     };
   }, []);
@@ -78,71 +105,10 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   return (
     <>
       <style>{`
-        .search-location-marker {
-          background: transparent;
-          z-index: 1000 !important;
-        }
-        .marker-pin {
-          background: #ff6b35;
-          border-radius: 50%;
-          height: 20px;
-          width: 20px;
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          transform: translate(-50%, -50%);
-          border: 3px solid white;
-          box-shadow: 0 3px 8px rgba(0,0,0,0.4);
-        }
-        .marker-pin.permanent {
-          background: #2563eb;
-          animation: pulse-blue 2s infinite;
-        }
-        .marker-label {
-          background: white;
-          border: 2px solid #ff6b35;
-          border-radius: 6px;
-          color: #333;
-          font-size: 12px;
-          font-weight: bold;
-          padding: 4px 8px;
-          position: absolute;
-          top: -40px;
-          left: 50%;
-          transform: translateX(-50%);
-          white-space: nowrap;
-          box-shadow: 0 3px 8px rgba(0,0,0,0.4);
-          z-index: 1001;
-        }
-        .marker-label.permanent {
-          border-color: #2563eb;
-          background: #eff6ff;
-          color: #1e40af;
-        }
-        .marker-label:after {
-          content: '';
-          position: absolute;
-          top: 100%;
-          left: 50%;
-          margin-left: -5px;
-          border: 5px solid transparent;
-          border-top-color: #ff6b35;
-        }
-        .marker-label.permanent:after {
-          border-top-color: #2563eb;
-        }
-        .permanent-marker {
-          z-index: 1000 !important;
-        }
-        @keyframes pulse-blue {
-          0%, 100% { 
-            opacity: 1; 
-            transform: translate(-50%, -50%) scale(1);
-          }
-          50% { 
-            opacity: 0.7; 
-            transform: translate(-50%, -50%) scale(1.1);
-          }
+        .leaflet-container {
+          height: 100%;
+          width: 100%;
+          z-index: 1;
         }
         .leaflet-draw-toolbar {
           z-index: 900;
@@ -150,51 +116,20 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         .leaflet-draw-toolbar a {
           cursor: pointer !important;
         }
-        .leaflet-container {
-          cursor: default;
-        }
         .leaflet-container.drawing-active {
           cursor: crosshair !important;
         }
         .leaflet-container.drawing-active * {
           cursor: crosshair !important;
         }
-        .leaflet-draw-draw-polygon {
-          cursor: crosshair !important;
-        }
-        .leaflet-draw-section:first-child a[title*="polygon"] {
-          cursor: crosshair !important;
-        }
-        .leaflet-draw-section:first-child a[title*="polygon"]:hover {
-          cursor: crosshair !important;
-        }
-        .leaflet-crosshair .leaflet-interactive {
-          cursor: crosshair !important;
-        }
-        .leaflet-container.leaflet-crosshair {
-          cursor: crosshair !important;
-        }
-        .leaflet-draw-draw-polygon .leaflet-draw-tooltip {
-          background: rgba(59, 130, 246, 0.9);
-          border: 1px solid #3b82f6;
-          border-radius: 4px;
-          color: white;
-          font-size: 12px;
-          padding: 4px 8px;
-        }
         .leaflet-control-container {
-          z-index: 800;
-        }
-        .leaflet-top {
-          z-index: 800;
-        }
-        .leaflet-bottom {
           z-index: 800;
         }
       `}</style>
       <div 
         ref={mapRef} 
         className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
+        style={{ minHeight: '500px' }}
       />
       <MapControls 
         map={mapInstanceRef.current} 
