@@ -145,22 +145,22 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           }
         }
         .leaflet-draw-toolbar {
-          z-index: 1000;
+          z-index: 900;
         }
         .leaflet-draw-toolbar a {
           cursor: pointer !important;
         }
-        .leaflet-draw-draw-polygon {
-          cursor: crosshair !important;
-        }
         .leaflet-container {
           cursor: default;
         }
-        .leaflet-container.crosshair-cursor-active {
+        .leaflet-container.drawing-active {
           cursor: crosshair !important;
         }
-        .leaflet-draw-section {
-          position: relative;
+        .leaflet-container.drawing-active * {
+          cursor: crosshair !important;
+        }
+        .leaflet-draw-draw-polygon {
+          cursor: crosshair !important;
         }
         .leaflet-draw-section:first-child a[title*="polygon"] {
           cursor: crosshair !important;
@@ -168,14 +168,12 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         .leaflet-draw-section:first-child a[title*="polygon"]:hover {
           cursor: crosshair !important;
         }
-        /* Enhanced crosshair for polygon drawing */
         .leaflet-crosshair .leaflet-interactive {
           cursor: crosshair !important;
         }
         .leaflet-container.leaflet-crosshair {
           cursor: crosshair !important;
         }
-        /* Free-form polygon drawing styles */
         .leaflet-draw-draw-polygon .leaflet-draw-tooltip {
           background: rgba(59, 130, 246, 0.9);
           border: 1px solid #3b82f6;
@@ -183,6 +181,15 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           color: white;
           font-size: 12px;
           padding: 4px 8px;
+        }
+        .leaflet-control-container {
+          z-index: 800;
+        }
+        .leaflet-top {
+          z-index: 800;
+        }
+        .leaflet-bottom {
+          z-index: 800;
         }
       `}</style>
       <div 

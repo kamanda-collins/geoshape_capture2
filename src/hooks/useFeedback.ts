@@ -30,8 +30,11 @@ export const useFeedback = (featureId?: string) => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (featureId) {
+      if (featureId && featureId !== 'general') {
         query = query.eq('feature_id', featureId);
+      } else if (featureId === 'general') {
+        // For general feedback, we'll use a placeholder UUID or handle it differently
+        query = query.eq('feature_id', '00000000-0000-0000-0000-000000000000');
       }
 
       const { data, error } = await query;
@@ -40,11 +43,14 @@ export const useFeedback = (featureId?: string) => {
       setFeedback(data || []);
     } catch (error: any) {
       console.error('Error loading feedback:', error);
-      toast({
-        title: "Error loading feedback",
-        description: error.message,
-        variant: "destructive"
-      });
+      // Don't show error toast for UUID parsing issues
+      if (!error.message.includes('invalid input syntax for type uuid')) {
+        toast({
+          title: "Error loading feedback",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -66,10 +72,16 @@ export const useFeedback = (featureId?: string) => {
     }
 
     try {
+      // For general feedback, use a consistent placeholder UUID
+      const featureIdToUse = feedbackData.feature_id === 'general' 
+        ? '00000000-0000-0000-0000-000000000000' 
+        : feedbackData.feature_id;
+
       const { data, error } = await supabase
         .from('feedback')
         .insert([{
           ...feedbackData,
+          feature_id: featureIdToUse,
           user_id: user.id
         }])
         .select()
