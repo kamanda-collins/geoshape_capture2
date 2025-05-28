@@ -13,6 +13,7 @@ interface MapControlsProps {
 }
 
 export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated }) => {
+  let scaleControl: any;
   React.useEffect(() => {
     if (!map) return;
 
@@ -117,20 +118,24 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
     });
 
     // Add scale control
-    window.L.control.scale({
-      position: 'bottomleft',
-      metric: true,
-      imperial: true
-    }).addTo(map);
+    scaleControl = window.L.control.scale({
+    position: 'bottomleft',
+    metric: true,
+    imperial: true
+   });
+    scaleControl.addTo(map);
 
-    return () => {
-      if (map) {
-        map.removeControl(drawControl);
-        map.getContainer().style.cursor = '';
-        map.getContainer().classList.remove('drawing-active');
-      }
-    };
-  }, [map, onShapeCreated]);
+  return () => {
+    if (map) {
+      map.removeControl(drawControl);
+      if (scaleControl) {
+      map.removeControl(scaleControl);
+    }
+      map.getContainer().style.cursor = '';
+      map.getContainer().classList.remove('drawing-active');
+    }
+  };
+}, [map, onShapeCreated]);
 
   return null;
 };
