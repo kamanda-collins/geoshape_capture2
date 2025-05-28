@@ -51,6 +51,54 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
     }
   };
 
+  const generatePDFContent = () => {
+    const mapData = {
+      title: mapTitle || 'Custom Map',
+      description: mapDescription,
+      location: searchLocation?.name || 'Unknown Location',
+      coordinates: searchLocation ? `${searchLocation.lat.toFixed(4)}, ${searchLocation.lng.toFixed(4)}` : 'Not specified',
+      features: {
+        roads: includeRoads ? 'Included' : 'Excluded',
+        buildings: includeBuildings ? 'Included' : 'Excluded',
+        waterBodies: includeWaterBodies ? 'Included' : 'Excluded',
+        compass: includeCompass ? 'Included' : 'Excluded',
+        scale: includeScale ? 'Included' : 'Excluded',
+        legend: includeLegend ? 'Included' : 'Excluded'
+      },
+      shape: currentShape ? 'Custom polygon drawn' : 'No shape',
+      createdAt: new Date().toLocaleString()
+    };
+
+    return `MAP EXPORT REPORT
+=====================
+
+Title: ${mapData.title}
+Description: ${mapData.description}
+Location: ${mapData.location}
+Coordinates: ${mapData.coordinates}
+Created: ${mapData.createdAt}
+
+MAP FEATURES
+============
+Roads & Streets: ${mapData.features.roads}
+Buildings: ${mapData.features.buildings}
+Water Bodies: ${mapData.features.waterBodies}
+Compass: ${mapData.features.compass}
+Scale Bar: ${mapData.features.scale}
+Legend: ${mapData.features.legend}
+
+SHAPE DATA
+==========
+${mapData.shape}
+
+GeoJSON Data:
+${JSON.stringify(currentShape, null, 2)}
+
+This map was created using GeoShape Map Creator.
+For technical support, contact the application administrator.
+`;
+  };
+
   const handleExportMap = (format: 'pdf' | 'png' | 'geojson') => {
     if (!currentShape) {
       toast({
@@ -61,29 +109,11 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
       return;
     }
 
-    // Create enhanced export data
-    const exportData = {
-      title: mapTitle || 'Custom Map',
-      description: mapDescription,
-      shape: currentShape,
-      location: searchLocation,
-      features: {
-        roads: includeRoads,
-        buildings: includeBuildings,
-        waterBodies: includeWaterBodies,
-        compass: includeCompass,
-        scale: includeScale,
-        legend: includeLegend
-      },
-      createdAt: new Date().toISOString()
-    };
-
     toast({
       title: `Generating ${format.toUpperCase()} Map`,
       description: `Creating your custom map "${mapTitle || 'Untitled Map'}" with selected features...`,
     });
 
-    // Simulate export with proper formatting
     setTimeout(() => {
       let blob;
       let filename = `${mapTitle || 'custom-map'}.${format}`;
@@ -93,14 +123,29 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
           type: 'application/json' 
         });
       } else if (format === 'pdf') {
-        // For PDF, we'd normally use a library like jsPDF with map rendering
-        blob = new Blob([JSON.stringify(exportData, null, 2)], { 
-          type: 'application/pdf' 
+        const pdfContent = generatePDFContent();
+        blob = new Blob([pdfContent], { 
+          type: 'text/plain' 
         });
+        filename = `${mapTitle || 'custom-map'}.txt`; // Change to .txt since we're generating text content
       } else {
-        // For PNG, we'd capture the map canvas
+        const exportData = {
+          title: mapTitle || 'Custom Map',
+          description: mapDescription,
+          shape: currentShape,
+          location: searchLocation,
+          features: {
+            roads: includeRoads,
+            buildings: includeBuildings,
+            waterBodies: includeWaterBodies,
+            compass: includeCompass,
+            scale: includeScale,
+            legend: includeLegend
+          },
+          createdAt: new Date().toISOString()
+        };
         blob = new Blob([JSON.stringify(exportData, null, 2)], { 
-          type: 'image/png' 
+          type: 'application/json' 
         });
       }
       
@@ -117,7 +162,7 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
         title: "Export Complete",
         description: `Your ${format.toUpperCase()} map has been downloaded successfully!`,
       });
-    }, 2000);
+    }, 1500);
   };
 
   const getStepContent = () => {
@@ -179,7 +224,7 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
                 <Checkbox 
                   id="roads" 
                   checked={includeRoads}
-                  onCheckedChange={setIncludeRoads}
+                  onCheckedChange={(checked) => setIncludeRoads(checked === true)}
                 />
                 <Label htmlFor="roads" className="text-xs">Roads & Streets</Label>
               </div>
@@ -188,7 +233,7 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
                 <Checkbox 
                   id="buildings" 
                   checked={includeBuildings}
-                  onCheckedChange={setIncludeBuildings}
+                  onCheckedChange={(checked) => setIncludeBuildings(checked === true)}
                 />
                 <Label htmlFor="buildings" className="text-xs">Buildings & Structures</Label>
               </div>
@@ -197,7 +242,7 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
                 <Checkbox 
                   id="water" 
                   checked={includeWaterBodies}
-                  onCheckedChange={setIncludeWaterBodies}
+                  onCheckedChange={(checked) => setIncludeWaterBodies(checked === true)}
                 />
                 <Label htmlFor="water" className="text-xs">Water Bodies</Label>
               </div>
@@ -210,7 +255,7 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
                 <Checkbox 
                   id="compass" 
                   checked={includeCompass}
-                  onCheckedChange={setIncludeCompass}
+                  onCheckedChange={(checked) => setIncludeCompass(checked === true)}
                 />
                 <Label htmlFor="compass" className="text-xs">Compass/North Arrow</Label>
               </div>
@@ -219,7 +264,7 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
                 <Checkbox 
                   id="scale" 
                   checked={includeScale}
-                  onCheckedChange={setIncludeScale}
+                  onCheckedChange={(checked) => setIncludeScale(checked === true)}
                 />
                 <Label htmlFor="scale" className="text-xs">Scale Bar</Label>
               </div>
@@ -228,7 +273,7 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
                 <Checkbox 
                   id="legend" 
                   checked={includeLegend}
-                  onCheckedChange={setIncludeLegend}
+                  onCheckedChange={(checked) => setIncludeLegend(checked === true)}
                 />
                 <Label htmlFor="legend" className="text-xs">Map Legend</Label>
               </div>
@@ -264,7 +309,7 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
                 variant="outline"
               >
                 <FileText className="h-4 w-4 mr-2" />
-                Export as PDF Map
+                Export Map Report (TXT)
               </Button>
               
               <Button
@@ -273,7 +318,7 @@ export const MapCreator: React.FC<MapCreatorProps> = ({
                 variant="outline"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Export as PNG Image
+                Export Map Data (JSON)
               </Button>
               
               <Button

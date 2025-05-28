@@ -20,7 +20,7 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
     const drawnItems = new window.L.FeatureGroup();
     map.addLayer(drawnItems);
 
-    // Initialize draw control with crosshair cursor for polygon
+    // Initialize draw control with enhanced polygon options
     const drawControl = new window.L.Control.Draw({
       edit: {
         featureGroup: drawnItems,
@@ -29,9 +29,11 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
       draw: {
         polygon: {
           allowIntersection: true,
+          showLength: true,
+          showArea: true,
           drawError: {
             color: '#e1e100',
-            message: '<strong>Draw any shape you want!</strong>'
+            message: '<strong>Create any shape you want!</strong>'
           },
           shapeOptions: {
             color: '#3b82f6',
@@ -39,15 +41,12 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
             fillOpacity: 0.3,
             weight: 2
           },
-          showArea: true,
           metric: true,
           feet: false,
           repeatMode: false,
-          // Add custom cursor style
-          icon: new window.L.DivIcon({
-            iconSize: [20, 20],
-            className: 'crosshair-cursor'
-          })
+          // Enable free-form drawing
+          guideLayers: [],
+          maxPoints: 0 // Allow unlimited points for free-form shapes
         },
         rectangle: {
           shapeOptions: {
@@ -76,12 +75,29 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
     
     map.addControl(drawControl);
 
+    // Add crosshair cursor when drawing polygons
+    map.on('draw:drawstart', (event: any) => {
+      if (event.layerType === 'polygon') {
+        map.getContainer().style.cursor = 'crosshair';
+        map.getContainer().classList.add('crosshair-cursor-active');
+      }
+    });
+
+    map.on('draw:drawstop', () => {
+      map.getContainer().style.cursor = '';
+      map.getContainer().classList.remove('crosshair-cursor-active');
+    });
+
     // Handle drawing events
     map.on(window.L.Draw.Event.CREATED, (event: any) => {
       const layer = event.layer;
       drawnItems.addLayer(layer);
       const geoJSON = layer.toGeoJSON();
       onShapeCreated(geoJSON);
+      
+      // Reset cursor after creation
+      map.getContainer().style.cursor = '';
+      map.getContainer().classList.remove('crosshair-cursor-active');
     });
 
     // Add scale control
@@ -94,6 +110,9 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
     return () => {
       if (map) {
         map.removeControl(drawControl);
+        // Reset cursor on cleanup
+        map.getContainer().style.cursor = '';
+        map.getContainer().classList.remove('crosshair-cursor-active');
       }
     };
   }, [map, onShapeCreated]);

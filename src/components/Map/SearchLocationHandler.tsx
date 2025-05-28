@@ -51,14 +51,15 @@ export const SearchLocationHandler: React.FC<SearchLocationHandlerProps> = ({ ma
       
       highlightLayerRef.current.addLayer(highlight);
       
-      // Add permanent marker
+      // Add permanent marker that stays on top
       const permanentMarker = window.L.marker([lat, lng], {
         icon: window.L.divIcon({
-          className: 'search-location-marker',
-          html: `<div class="marker-pin"></div><div class="marker-label">${name}</div>`,
-          iconSize: [120, 40],
-          iconAnchor: [60, 40]
-        })
+          className: 'search-location-marker permanent-marker',
+          html: `<div class="marker-pin permanent"></div><div class="marker-label permanent">${name}</div>`,
+          iconSize: [140, 50],
+          iconAnchor: [70, 50]
+        }),
+        zIndexOffset: 1000
       });
       
       searchMarkersRef.current.addLayer(permanentMarker);
@@ -80,14 +81,15 @@ export const SearchLocationHandler: React.FC<SearchLocationHandlerProps> = ({ ma
       
       highlightLayerRef.current.addLayer(highlight);
       
-      // Add permanent marker
+      // Add permanent marker that stays on top
       const permanentMarker = window.L.marker([lat, lng], {
         icon: window.L.divIcon({
-          className: 'search-location-marker',
-          html: `<div class="marker-pin"></div><div class="marker-label">${name}</div>`,
-          iconSize: [120, 40],
-          iconAnchor: [60, 40]
-        })
+          className: 'search-location-marker permanent-marker',
+          html: `<div class="marker-pin permanent"></div><div class="marker-label permanent">${name}</div>`,
+          iconSize: [140, 50],
+          iconAnchor: [70, 50]
+        }),
+        zIndexOffset: 1000
       });
       
       searchMarkersRef.current.addLayer(permanentMarker);
@@ -104,7 +106,7 @@ export const SearchLocationHandler: React.FC<SearchLocationHandlerProps> = ({ ma
       description: `Centered map on ${name}`,
     });
 
-    // Remove highlight after 4 seconds
+    // Remove only the highlight (not the marker) after 4 seconds
     setTimeout(() => {
       if (highlightLayerRef.current) {
         highlightLayerRef.current.clearLayers();

@@ -80,6 +80,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       <style>{`
         .search-location-marker {
           background: transparent;
+          z-index: 1000 !important;
         }
         .marker-pin {
           background: #ff6b35;
@@ -91,22 +92,32 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           top: 50%;
           transform: translate(-50%, -50%);
           border: 3px solid white;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+        }
+        .marker-pin.permanent {
+          background: #2563eb;
+          animation: pulse-blue 2s infinite;
         }
         .marker-label {
           background: white;
           border: 2px solid #ff6b35;
-          border-radius: 4px;
+          border-radius: 6px;
           color: #333;
           font-size: 12px;
           font-weight: bold;
-          padding: 2px 6px;
+          padding: 4px 8px;
           position: absolute;
-          top: -35px;
+          top: -40px;
           left: 50%;
           transform: translateX(-50%);
           white-space: nowrap;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+          z-index: 1001;
+        }
+        .marker-label.permanent {
+          border-color: #2563eb;
+          background: #eff6ff;
+          color: #1e40af;
         }
         .marker-label:after {
           content: '';
@@ -117,14 +128,61 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           border: 5px solid transparent;
           border-top-color: #ff6b35;
         }
-        .crosshair-cursor {
-          cursor: crosshair !important;
+        .marker-label.permanent:after {
+          border-top-color: #2563eb;
+        }
+        .permanent-marker {
+          z-index: 1000 !important;
+        }
+        @keyframes pulse-blue {
+          0%, 100% { 
+            opacity: 1; 
+            transform: translate(-50%, -50%) scale(1);
+          }
+          50% { 
+            opacity: 0.7; 
+            transform: translate(-50%, -50%) scale(1.1);
+          }
+        }
+        .leaflet-draw-toolbar {
+          z-index: 1000;
         }
         .leaflet-draw-toolbar a {
           cursor: pointer !important;
         }
         .leaflet-draw-draw-polygon {
           cursor: crosshair !important;
+        }
+        .leaflet-container {
+          cursor: default;
+        }
+        .leaflet-container.crosshair-cursor-active {
+          cursor: crosshair !important;
+        }
+        .leaflet-draw-section {
+          position: relative;
+        }
+        .leaflet-draw-section:first-child a[title*="polygon"] {
+          cursor: crosshair !important;
+        }
+        .leaflet-draw-section:first-child a[title*="polygon"]:hover {
+          cursor: crosshair !important;
+        }
+        /* Enhanced crosshair for polygon drawing */
+        .leaflet-crosshair .leaflet-interactive {
+          cursor: crosshair !important;
+        }
+        .leaflet-container.leaflet-crosshair {
+          cursor: crosshair !important;
+        }
+        /* Free-form polygon drawing styles */
+        .leaflet-draw-draw-polygon .leaflet-draw-tooltip {
+          background: rgba(59, 130, 246, 0.9);
+          border: 1px solid #3b82f6;
+          border-radius: 4px;
+          color: white;
+          font-size: 12px;
+          padding: 4px 8px;
         }
       `}</style>
       <div 
