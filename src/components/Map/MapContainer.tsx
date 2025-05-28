@@ -29,39 +29,65 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   const mapInstanceRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!mapRef.current || !window.L) {
-      console.error('Map container or Leaflet not available');
+    console.log('MapContainer: Starting initialization');
+    console.log('MapContainer: mapRef.current:', mapRef.current);
+    console.log('MapContainer: window.L:', window.L);
+
+    if (!mapRef.current) {
+      console.error('MapContainer: Map container ref not available');
+      return;
+    }
+
+    if (!window.L) {
+      console.error('MapContainer: Leaflet library not loaded');
       return;
     }
 
     // Clear any existing map
     if (mapInstanceRef.current) {
+      console.log('MapContainer: Removing existing map');
       mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
     }
 
     try {
-      // Initialize map with proper settings
+      console.log('MapContainer: Creating new map instance');
+      
+      // Initialize map with explicit options
       const map = window.L.map(mapRef.current, {
-        center: [40.7128, -74.0060],
+        center: [40.7128, -74.0060], // New York coordinates
         zoom: 10,
         zoomControl: true,
-        attributionControl: true
+        attributionControl: true,
+        preferCanvas: false
       });
 
-      // Add default OpenStreetMap tile layer
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      console.log('MapContainer: Map instance created:', map);
+
+      // Add tile layer immediately
+      const tileLayer = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
-      }).addTo(map);
+      });
+
+      console.log('MapContainer: Adding tile layer');
+      tileLayer.addTo(map);
+
+      // Force map to invalidate size after a short delay
+      setTimeout(() => {
+        console.log('MapContainer: Invalidating map size');
+        map.invalidateSize();
+      }, 100);
 
       mapInstanceRef.current = map;
-      console.log('Map initialized successfully');
+      console.log('MapContainer: Map initialized successfully');
 
     } catch (error) {
-      console.error('Error initializing map:', error);
+      console.error('MapContainer: Error initializing map:', error);
     }
 
     return () => {
+      console.log('MapContainer: Cleanup');
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -72,6 +98,8 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   // Display saved features on map
   useEffect(() => {
     if (!mapInstanceRef.current || !features.length) return;
+
+    console.log('MapContainer: Adding features to map:', features.length);
 
     features.forEach((feature, index) => {
       try {
@@ -97,7 +125,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         `);
         layer.addTo(mapInstanceRef.current);
       } catch (e) {
-        console.error('Error parsing GeoJSON:', e);
+        console.error('MapContainer: Error parsing GeoJSON:', e);
       }
     });
   }, [features]);
@@ -109,6 +137,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           height: 100%;
           width: 100%;
           z-index: 1;
+          background: #e5e7eb;
         }
         .leaflet-draw-toolbar {
           z-index: 900;
@@ -129,7 +158,10 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       <div 
         ref={mapRef} 
         className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
-        style={{ minHeight: '500px' }}
+        style={{ 
+          minHeight: '500px',
+          backgroundColor: '#e5e7eb'
+        }}
       />
       <MapControls 
         map={mapInstanceRef.current} 
