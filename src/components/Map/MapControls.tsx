@@ -14,11 +14,13 @@ interface MapControlsProps {
 
 export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated }) => {
   let scaleControl: any;
+  let drawnItems: any;
+  
   React.useEffect(() => {
     if (!map) return;
 
     // Initialize drawn items layer
-    const drawnItems = new window.L.FeatureGroup();
+    drawnItems = new window.L.FeatureGroup();
     map.addLayer(drawnItems);
 
     // Initialize draw control with enhanced options
@@ -47,7 +49,7 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
           feet: false,
           repeatMode: false,
           guideLayers: [],
-          maxPoints: 0 // Allow unlimited points for free-form shapes
+          maxPoints: 0
         },
         rectangle: {
           shapeOptions: {
@@ -111,31 +113,34 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
     // Handle shape deletion
     map.on(window.L.Draw.Event.DELETED, (event: any) => {
       console.log('Shapes deleted');
-      // If all shapes are deleted, clear the current shape
-      if (drawnItems.getLayers().length === 0) {
-        onShapeCreated(null);
-      }
+      // Clear all shapes from the drawn items layer
+      drawnItems.clearLayers();
+      // Clear the current shape state
+      onShapeCreated(null);
     });
 
     // Add scale control
     scaleControl = window.L.control.scale({
-    position: 'bottomleft',
-    metric: true,
-    imperial: true
-   });
+      position: 'bottomleft',
+      metric: true,
+      imperial: true
+    });
     scaleControl.addTo(map);
 
-  return () => {
-    if (map) {
-      map.removeControl(drawControl);
-      if (scaleControl) {
-      map.removeControl(scaleControl);
-    }
-      map.getContainer().style.cursor = '';
-      map.getContainer().classList.remove('drawing-active');
-    }
-  };
-}, [map, onShapeCreated]);
+    return () => {
+      if (map) {
+        map.removeControl(drawControl);
+        if (scaleControl) {
+          map.removeControl(scaleControl);
+        }
+        if (drawnItems) {
+          map.removeLayer(drawnItems);
+        }
+        map.getContainer().style.cursor = '';
+        map.getContainer().classList.remove('drawing-active');
+      }
+    };
+  }, [map, onShapeCreated]);
 
   return null;
 };

@@ -27,17 +27,16 @@ export const ExportButton: React.FC<ExportButtonProps> = ({ currentShape, onExpo
   };
 
   const handleExport = async (format: 'pdf' | 'png' | 'geojson') => {
-    if (!currentShape) {
-      toast({
-        title: "No shape to export",
-        description: "Please draw a shape on the map first.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
       if (format === 'geojson') {
+        if (!currentShape) {
+          toast({
+            title: "No shape to export",
+            description: "Please draw a shape on the map first.",
+            variant: "destructive"
+          });
+          return;
+        }
         const dataStr = JSON.stringify(currentShape, null, 2);
         const dataBlob = new Blob([dataStr], { type: 'application/json' });
         const url = URL.createObjectURL(dataBlob);
@@ -75,16 +74,23 @@ export const ExportButton: React.FC<ExportButtonProps> = ({ currentShape, onExpo
     const mapContainer = document.querySelector('.leaflet-container') as HTMLElement;
     if (!mapContainer) throw new Error('Map container not found');
 
+    // Wait a moment for any rendering to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     const { default: html2canvas } = await import('html2canvas');
     const canvas = await html2canvas(mapContainer, {
       useCORS: true,
       allowTaint: true,
-      scale: 2
+      scale: 2,
+      backgroundColor: null,
+      logging: false,
+      width: mapContainer.offsetWidth,
+      height: mapContainer.offsetHeight
     });
     
     const link = document.createElement('a');
     link.download = `map-${Date.now()}.png`;
-    link.href = canvas.toDataURL();
+    link.href = canvas.toDataURL('image/png');
     link.click();
   };
 
@@ -92,28 +98,49 @@ export const ExportButton: React.FC<ExportButtonProps> = ({ currentShape, onExpo
     const mapContainer = document.querySelector('.leaflet-container') as HTMLElement;
     if (!mapContainer) throw new Error('Map container not found');
 
+    // Wait a moment for any rendering to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     const { default: html2canvas } = await import('html2canvas');
     const { jsPDF } = await import('jspdf');
     
     const canvas = await html2canvas(mapContainer, {
       useCORS: true,
       allowTaint: true,
-      scale: 2
+      scale: 2,
+      backgroundColor: null,
+      logging: false,
+      width: mapContainer.offsetWidth,
+      height: mapContainer.offsetHeight
     });
     
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF({
-      orientation: 'landscape',
+      orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
       unit: 'mm',
       format: 'a4'
     });
     
-    const imgWidth = 297;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgAspectRatio = canvas.width / canvas.height;
+    const pdfAspectRatio = pdfWidth / pdfHeight;
     
-    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-    pdf.setFontSize(10);
-    pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 10, imgHeight + 10);
+    let imgWidth, imgHeight;
+    if (imgAspectRatio > pdfAspectRatio) {
+      imgWidth = pdfWidth;
+      imgHeight = pdfWidth / imgAspectRatio;
+    } else {
+      imgHeight = pdfHeight;
+      imgWidth = pdfHeight * imgAspectRatio;
+    }
+    
+    const x = (pdfWidth - imgWidth) / 2;
+    const y = (pdfHeight - imgHeight) / 2;
+    
+    pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+    pdf.setFontSize(8);
+    pdf.text(`Generated on ${new Date().toLocaleDateString()}`, 10, pdfHeight - 10);
     pdf.save(`map-${Date.now()}.pdf`);
   };
 
@@ -155,6 +182,7 @@ export const ExportButton: React.FC<ExportButtonProps> = ({ currentShape, onExpo
               onClick={() => handleExport('geojson')}
               className="flex items-center gap-2 justify-start"
               variant="outline"
+              disabled={!currentShape}
             >
               <Download className="h-4 w-4" />
               Download GeoJSON
