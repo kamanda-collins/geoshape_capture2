@@ -175,6 +175,27 @@ export type Database = {
           },
         ]
       }
+      newprofiles: {
+        Row: {
+          bio: string | null
+          created_at: string | null
+          id: number
+          user_id: string | null
+        }
+        Insert: {
+          bio?: string | null
+          created_at?: string | null
+          id?: never
+          user_id?: string | null
+        }
+        Update: {
+          bio?: string | null
+          created_at?: string | null
+          id?: never
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

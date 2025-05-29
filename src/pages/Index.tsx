@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { User, LogOut, MessageSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/components/Auth/AuthProvider';
@@ -12,8 +11,9 @@ import { MapCreator } from '@/components/Map/MapCreator';
 import { MapLayers } from '@/components/MapLayers';
 import { SearchBar } from '@/components/SearchBar';
 import { FileUpload } from '@/components/FileUpload';
-import { FeedbackPanel } from '@/components/Feedback/FeedbackPanel';
+import { FeedbackForm } from '@/components/Feedback/FeedbackForm';
 import { AnalyticsDashboard } from '@/components/Analytics/AnalyticsDashboard';
+import { ExportButton } from '@/components/Export/ExportButton';
 import { useFeatures } from '@/hooks/useFeatures';
 import { useToast } from '@/hooks/use-toast';
 
@@ -57,6 +57,10 @@ const IndexContent = () => {
     } catch (error) {
       console.error('Error signing out:', error);
     }
+  };
+
+  const handleExport = (format: 'pdf' | 'png' | 'geojson') => {
+    console.log(`Exported as ${format}`);
   };
 
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -136,13 +140,22 @@ const IndexContent = () => {
               onClearShape={handleClearShape}
             />
 
+            {/* Export Section */}
+            <Card className="p-4">
+              <h3 className="font-medium text-sm mb-4">Export Options</h3>
+              <ExportButton 
+                currentShape={currentShape}
+                onExport={handleExport}
+              />
+            </Card>
+
             {/* Feedback Panel for all users */}
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-4">
                 <MessageSquare className="h-4 w-4 text-blue-500" />
                 <h3 className="font-medium text-sm">Send Feedback</h3>
               </div>
-              <FeedbackPanel featureId="general" />
+              <FeedbackForm featureId="general" />
             </Card>
 
             {/* Admin-only Analytics */}
