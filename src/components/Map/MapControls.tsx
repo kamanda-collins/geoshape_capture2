@@ -1,4 +1,4 @@
-
+import { supabase } from '@/integrations/supabase/client';
 import React from 'react';
 
 declare global {
@@ -141,6 +141,39 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
       }
     };
   }, [map, onShapeCreated]);
+    
+  React.useEffect(() => {
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    if (!map) return;
+
+    const fetchAndRenderShapes = async () => {
+      const { data, error } = await supabase.from('features').select('*');
+
+      if (error) {
+        console.error('Error fetching features:', error.message);
+        return;
+      }
+
+      data.forEach((feature) => {
+        try {
+          const geoLayer = window.L.geoJSON(feature.geojson);
+          geoLayer.addTo(map);
+        } catch (err) {
+          console.error('Error rendering shape:', err);
+        }
+      });
+    };
+
+    fetchAndRenderShapes();
+  }, [map]);
 
   return null;
 };
