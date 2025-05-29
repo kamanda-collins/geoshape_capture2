@@ -1,5 +1,5 @@
-import { supabase } from '@/integrations/supabase/client';
 import React from 'react';
+import { supabase } from '@/integrations/supabase/client'; // Supabase client
 
 declare global {
   interface Window {
@@ -15,15 +15,38 @@ interface MapControlsProps {
 export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated }) => {
   let scaleControl: any;
   let drawnItems: any;
-  
+
   React.useEffect(() => {
     if (!map) return;
 
-    // Initialize drawn items layer
+    // Initialize drawn items layer group
     drawnItems = new window.L.FeatureGroup();
     map.addLayer(drawnItems);
 
-    // Initialize draw control with enhanced options
+    // Fetch and render saved shapes from Supabase
+    const fetchAndRenderShapes = async () => {
+      const { data, error } = await supabase.from('features').select('*');
+
+      if (error) {
+        console.error('❌ Error fetching features:', error.message);
+        return;
+      }
+
+      console.log('✅ Fetched features:', data);
+
+      data.forEach((feature) => {
+        try {
+          const geoLayer = window.L.geoJSON(feature.geojson);
+          geoLayer.addTo(drawnItems); // Add to group, not directly to map
+        } catch (err) {
+          console.error('❌ Error rendering shape:', err);
+        }
+      });
+    };
+
+    fetchAndRenderShapes();
+
+    // Configure Leaflet draw controls
     const drawControl = new window.L.Control.Draw({
       edit: {
         featureGroup: drawnItems,
@@ -75,11 +98,11 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
         circlemarker: false
       }
     });
-    
+
     map.addControl(drawControl);
 
-    // Enhanced cursor management for all drawing tools
-    map.on('draw:drawstart', (event: any) => {
+    // Drawing cursor indicators
+    map.on('draw:drawstart', () => {
       map.getContainer().style.cursor = 'crosshair';
       map.getContainer().classList.add('drawing-active');
     });
@@ -89,19 +112,18 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
       map.getContainer().classList.remove('drawing-active');
     });
 
-    // Handle shape creation
+    // When a new shape is created
     map.on(window.L.Draw.Event.CREATED, (event: any) => {
       const layer = event.layer;
       drawnItems.addLayer(layer);
       const geoJSON = layer.toGeoJSON();
       onShapeCreated(geoJSON);
-      
-      // Reset cursor after creation
+
       map.getContainer().style.cursor = '';
       map.getContainer().classList.remove('drawing-active');
     });
 
-    // Handle shape editing
+    // On shape edit
     map.on(window.L.Draw.Event.EDITED, (event: any) => {
       const layers = event.layers;
       layers.eachLayer((layer: any) => {
@@ -110,16 +132,14 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
       });
     });
 
-    // Handle shape deletion
-    map.on(window.L.Draw.Event.DELETED, (event: any) => {
-      console.log('Shapes deleted');
-      // Clear all shapes from the drawn items layer
-      drawnItems.clearLayers();
-      // Clear the current shape state
-      onShapeCreated(null);
+    // On shape delete
+    map.on(window.L.Draw.Event.DELETED, () => {
+      console.log('Shapes deleted by user');
+      drawnItems.clearLayers(); // clear from map
+      onShapeCreated(null);     // reset shape state
     });
 
-    // Add scale control
+    // Add scale bar
     scaleControl = window.L.control.scale({
       position: 'bottomleft',
       metric: true,
@@ -127,53 +147,17 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
     });
     scaleControl.addTo(map);
 
+    // Cleanup
     return () => {
       if (map) {
         map.removeControl(drawControl);
-        if (scaleControl) {
-          map.removeControl(scaleControl);
-        }
-        if (drawnItems) {
-          map.removeLayer(drawnItems);
-        }
+        if (scaleControl) map.removeControl(scaleControl);
+        if (drawnItems) map.removeLayer(drawnItems);
         map.getContainer().style.cursor = '';
         map.getContainer().classList.remove('drawing-active');
       }
     };
   }, [map, onShapeCreated]);
-    
-  React.useEffect(() => {
-  
-  
-  
-  
-  
-  
-  
-  
-  
-    if (!map) return;
-
-    const fetchAndRenderShapes = async () => {
-      const { data, error } = await supabase.from('features').select('*');
-
-      if (error) {
-        console.error('Error fetching features:', error.message);
-        return;
-      }
-
-      data.forEach((feature) => {
-        try {
-          const geoLayer = window.L.geoJSON(feature.geojson);
-          geoLayer.addTo(map);
-        } catch (err) {
-          console.error('Error rendering shape:', err);
-        }
-      });
-    };
-
-    fetchAndRenderShapes();
-  }, [map]);
 
   return null;
 };
