@@ -1,0 +1,13 @@
+[33m2f957c0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{0}: reset: moving to HEAD~1
+[33mbd8371e[m[33m ([m[1;31morigin/fix/area-persistence[m[33m, [m[1;31morigin/fix-shapefile-rollback[m[33m, [m[1;32mfix/area-persistence[m[33m, [m[1;32mfix-shapefile-rollback[m[33m)[m HEAD@{1}: checkout: moving from fix/area-persistence to main
+[33mbd8371e[m[33m ([m[1;31morigin/fix/area-persistence[m[33m, [m[1;31morigin/fix-shapefile-rollback[m[33m, [m[1;32mfix/area-persistence[m[33m, [m[1;32mfix-shapefile-rollback[m[33m)[m HEAD@{2}: checkout: moving from fix/area-persistence to fix/area-persistence
+[33mbd8371e[m[33m ([m[1;31morigin/fix/area-persistence[m[33m, [m[1;31morigin/fix-shapefile-rollback[m[33m, [m[1;32mfix/area-persistence[m[33m, [m[1;32mfix-shapefile-rollback[m[33m)[m HEAD@{3}: checkout: moving from main to fix/area-persistence
+[33mbd8371e[m[33m ([m[1;31morigin/fix/area-persistence[m[33m, [m[1;31morigin/fix-shapefile-rollback[m[33m, [m[1;32mfix/area-persistence[m[33m, [m[1;32mfix-shapefile-rollback[m[33m)[m HEAD@{4}: merge fix-shapefile-rollback: Fast-forward
+[33m2b135c7[m HEAD@{5}: checkout: moving from fix-shapefile-rollback to main
+[33mbd8371e[m[33m ([m[1;31morigin/fix/area-persistence[m[33m, [m[1;31morigin/fix-shapefile-rollback[m[33m, [m[1;32mfix/area-persistence[m[33m, [m[1;32mfix-shapefile-rollback[m[33m)[m HEAD@{6}: commit: fix: trial 2- shapefile detection
+[33m2f957c0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{7}: commit: Fix: map shapefile creation
+[33m2b135c7[m HEAD@{8}: checkout: moving from 2b135c7e24a64597a4d370a6ed748f589f92121a to fix-shapefile-rollback
+[33m2b135c7[m HEAD@{9}: checkout: moving from main to 2b135c7e24a64597a4d370a6ed748f589f92121a
+[33m9c5784f[m HEAD@{10}: commit: Fix: usersignup error
+[33m59e5563[m HEAD@{11}: commit: Fix: prevent duplicate scale meters in GeoShape-Capture Portal
+[33m0465cc4[m HEAD@{12}: clone: from https://github.com/kamanda-collins/geo-shape-capture-portal.git
