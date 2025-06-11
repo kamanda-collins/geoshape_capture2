@@ -31,8 +31,14 @@ export default defineConfig(({ mode }) => {
       include: ['react', 'react-dom'],
     },
     define: {
-      // Expose env variables to your app
-      'process.env': env
+      // Only expose specific environment variables that your app needs
+      // Replace these with your actual environment variable names
+      'process.env.VITE_HUGGINGFACE_TOKEN': JSON.stringify(env.VITE_HUGGINGFACE_TOKEN || env.HUGGINGFACE_TOKEN),
+      'process.env.VITE_EARTH_ENGINE_TOKEN': JSON.stringify(env.VITE_EARTH_ENGINE_TOKEN || env.EARTH_ENGINE_TOKEN),
+      'process.env.NODE_ENV': JSON.stringify(env.NODE_ENV),
+      // Add any other specific environment variables your app uses
+      // 'process.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL),
+      // 'process.env.VITE_OTHER_VAR': JSON.stringify(env.VITE_OTHER_VAR),
     }
   };
 });

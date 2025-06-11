@@ -16,6 +16,7 @@ declare global {
 
 export interface MapContainerRef {
   createBufferOnMap: (center: [number, number], radius: number) => void;
+  clearDrawnItems: () => void;
 }
 
 interface MapContainerProps {
@@ -34,34 +35,42 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
   searchLocation,
 }, ref) => {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
+  const [mapInstance, setMapInstance] = useState<any>(null);
   const [totalArea, setTotalArea] = useState(0);
   const [featureTypes, setFeatureTypes] = useState<{ [key: string]: number }>({});
   const [areaSqM, setAreaSqM] = useState(0);
   const [riskScore, setRiskScore] = useState(0);
-  const drawnItemsRef = useRef<any>(null);
+  const currentDrawnLayerRef = useRef<any>(null); // Keep reference to current drawn layer
 
-  // Expose createBufferOnMap via ref
-  useImperativeHandle(ref, () => ({
-    createBufferOnMap,
-  }));
-
-  const handleShapeAnalyzed = (geojson: any) => {
-    const area = turf.area(geojson);
-    const risk = parseFloat((Math.random() * 5).toFixed(2)); // Dummy risk
-    setAreaSqM(area);
-    setRiskScore(risk);
+  // Function to clear drawn items
+  const clearDrawnItems = () => {
+    if (mapInstance) {
+      // Find the drawnItems layer that MapControls created
+      mapInstance.eachLayer((layer: any) => {
+        if (layer instanceof window.L.FeatureGroup && layer !== mapInstance._layers[Object.keys(mapInstance._layers)[0]]) {
+          layer.clearLayers();
+        }
+      });
+    }
+    if (currentDrawnLayerRef.current) {
+      currentDrawnLayerRef.current = null;
+    }
+    setAreaSqM(0);
+    setRiskScore(0);
   };
 
   // Function to create a buffer on the map
   const createBufferOnMap = (center: [number, number], radius: number) => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstance) return;
 
     try {
       const token = getHuggingFaceToken();
       if (!token) {
         throw new Error('Hugging Face token not found');
       }
+
+      // Clear previous drawn items first
+      clearDrawnItems();
 
       const circle = window.L.circle(center, {
         radius: radius,
@@ -70,19 +79,51 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
         fillOpacity: 0.2
       });
 
-      circle.addTo(mapInstanceRef.current);
+      // Find and add to the MapControls drawnItems layer
+      let drawnItemsLayer = null;
+      mapInstance.eachLayer((layer: any) => {
+        if (layer instanceof window.L.FeatureGroup && layer._leaflet_id !== mapInstance._layers[Object.keys(mapInstance._layers)[0]]._leaflet_id) {
+          drawnItemsLayer = layer;
+        }
+      });
+
+      if (drawnItemsLayer) {
+        drawnItemsLayer.addLayer(circle);
+      } else {
+        circle.addTo(mapInstance);
+      }
+      
+      currentDrawnLayerRef.current = circle;
       
       // Convert circle to GeoJSON and trigger shape creation
       const geoJSON = circle.toGeoJSON();
+      handleShapeAnalyzed(geoJSON);
       onShapeCreated(geoJSON);
     } catch (error) {
       console.error('Error creating buffer:', error);
     }
   };
 
+  // Expose functions via ref
+  useImperativeHandle(ref, () => ({
+    createBufferOnMap,
+    clearDrawnItems,
+  }));
+
+  const handleShapeAnalyzed = (geojson: any) => {
+    try {
+      const area = turf.area(geojson);
+      const risk = parseFloat((Math.random() * 5).toFixed(2)); // Dummy risk
+      setAreaSqM(area);
+      setRiskScore(risk);
+    } catch (error) {
+      console.error('Error analyzing shape:', error);
+    }
+  };
+
   // Initialize map
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
+    if (!mapRef.current || mapInstance) return;
 
     try {
       console.log('MapContainer: Creating new map instance');
@@ -97,33 +138,50 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
       });
 
       // Add tile layer immediately
-      const tileLayer = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      const tileLayer = window.L.tileLayer('https://{s}.tile.openstreetMap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
       });
 
       tileLayer.addTo(map);
 
-      // Initialize drawn items
-      const drawnItems = new window.L.FeatureGroup();
-      map.addLayer(drawnItems);
-      drawnItemsRef.current = drawnItems;
+      // Don't create our own drawn items - let MapControls handle this
+      // We'll listen for the MapControls events instead
 
-      // Set up draw controls
-      map.on('draw:created', (e: any) => {
+      // Listen for draw events from MapControls
+      map.on(window.L.Draw.Event.CREATED, (e: any) => {
         const layer = e.layer;
-        drawnItems.clearLayers();
-        drawnItems.addLayer(layer);
+        currentDrawnLayerRef.current = layer;
 
         const geojson = layer.toGeoJSON();
         handleShapeAnalyzed(geojson);
       });
 
-      mapInstanceRef.current = map;
+      // Listen for edit events
+      map.on(window.L.Draw.Event.EDITED, (e: any) => {
+        const layers = e.layers;
+        layers.eachLayer((layer: any) => {
+          currentDrawnLayerRef.current = layer;
+          const geojson = layer.toGeoJSON();
+          handleShapeAnalyzed(geojson);
+        });
+      });
+
+      // Listen for delete events
+      map.on(window.L.Draw.Event.DELETED, () => {
+        currentDrawnLayerRef.current = null;
+        setAreaSqM(0);
+        setRiskScore(0);
+      });
+
+      // Set the map instance in state (this will trigger re-renders)
+      setMapInstance(map);
 
       // Force map to invalidate size after a short delay
       setTimeout(() => {
-        map.invalidateSize();
+        if (map && map.getContainer()) {
+          map.invalidateSize();
+        }
       }, 100);
 
     } catch (error) {
@@ -131,47 +189,76 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
     }
 
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
+      if (mapInstance) {
+        try {
+          mapInstance.remove();
+        } catch (error) {
+          console.error('Error removing map:', error);
+        }
+        setMapInstance(null);
       }
     };
   }, []);
 
-  // Display saved features on map
+  // Display saved features on map (but don't interfere with drawn items)
   useEffect(() => {
-    if (!mapInstanceRef.current || !features.length) return;
+    if (!mapInstance) return;
 
     console.log('MapContainer: Adding features to map:', features.length);
 
-    features.forEach((feature, index) => {
-      try {
-        const geoJSON = JSON.parse(feature.geo);
-        const colors = ['#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
-        const color = colors[index % colors.length];
-        
-        const layer = window.L.geoJSON(geoJSON, {
-          style: {
-            color: color,
-            fillColor: color,
-            fillOpacity: 0.3,
-            weight: 2
+    // Clear existing feature layers (but preserve drawn items and base layers)
+    try {
+      const layersToRemove: any[] = [];
+      
+      mapInstance.eachLayer((layer: any) => {
+        // Only remove layers that are saved features
+        // Don't touch FeatureGroups (drawnItems), tile layers, or the current drawn layer
+        if (layer.feature && 
+            !(layer instanceof window.L.FeatureGroup) &&
+            layer !== currentDrawnLayerRef.current) {
+          layersToRemove.push(layer);
+        }
+      });
+
+      // Remove the identified layers
+      layersToRemove.forEach(layer => {
+        mapInstance.removeLayer(layer);
+      });
+
+      // Only add features if there are any
+      if (features.length > 0) {
+        features.forEach((feature, index) => {
+          try {
+            const geoJSON = JSON.parse(feature.geo);
+            const colors = ['#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
+            const color = colors[index % colors.length];
+            
+            const layer = window.L.geoJSON(geoJSON, {
+              style: {
+                color: color,
+                fillColor: color,
+                fillOpacity: 0.3,
+                weight: 2
+              }
+            });
+            
+            layer.bindPopup(`
+              <div>
+                <strong>${feature.name}</strong><br>
+                ${feature.description || ''}<br>
+                <small>Created: ${new Date(feature.created_at).toLocaleDateString()}</small>
+              </div>
+            `);
+            layer.addTo(mapInstance);
+          } catch (e) {
+            console.error('MapContainer: Error parsing GeoJSON:', e);
           }
         });
-        
-        layer.bindPopup(`
-          <div>
-            <strong>${feature.name}</strong><br>
-            ${feature.description || ''}<br>
-            <small>Created: ${new Date(feature.created_at).toLocaleDateString()}</small>
-          </div>
-        `);
-        layer.addTo(mapInstanceRef.current);
-      } catch (e) {
-        console.error('MapContainer: Error parsing GeoJSON:', e);
       }
-    });
-  }, [features]);
+    } catch (error) {
+      console.error('Error updating features on map:', error);
+    }
+  }, [features, mapInstance]);
 
   // Calculate summary statistics when features change
   useEffect(() => {
@@ -187,16 +274,10 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
     features.forEach(feature => {
       try {
         const geoJSON = JSON.parse(feature.geo);
-        // Calculate area using Leaflet's area calculation
-        if (mapInstanceRef.current && geoJSON.geometry) {
-          const layer = window.L.geoJSON(geoJSON);
-          if (typeof layer.getLayers()[0].getArea === 'function') {
-             const layerArea = layer.getLayers()[0].getArea();
-             area += layerArea;
-          } else {
-            console.warn('MapContainer: getArea() not available for this geometry type');
-          }
-        }
+        
+        // Use turf.js for consistent area calculation
+        const featureArea = turf.area(geoJSON);
+        area += featureArea;
 
         // Count feature types
         const type = geoJSON.geometry?.type || 'unknown';
@@ -211,7 +292,7 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
   }, [features]);
 
   const handleShapefileLoad = (geoJSON: any, filename: string) => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstance) return;
 
     try {
       const layer = window.L.geoJSON(geoJSON, {
@@ -223,7 +304,7 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
         }
       });
 
-      layer.addTo(mapInstanceRef.current);
+      layer.addTo(mapInstance);
       onShapeCreated(geoJSON);
     } catch (error) {
       console.error('Error loading shapefile:', error);
@@ -233,20 +314,24 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
   const handleExport = () => {
     if (!features.length) return;
 
-    const exportData = features.map(feature => ({
-      ...feature,
-      geo: JSON.parse(feature.geo)
-    }));
+    try {
+      const exportData = features.map(feature => ({
+        ...feature,
+        geo: JSON.parse(feature.geo)
+      }));
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'map-export.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'map-export.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+    }
   };
 
   return (
@@ -286,6 +371,7 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
           />
         </div>
         <div className="space-y-4">
+          {/* Only keep the outer summary panel */}
           <SummaryPanel 
             totalFeatures={features.length}
             totalArea={totalArea}
@@ -293,37 +379,58 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
             recentArea={areaSqM}
             riskScore={riskScore}
           />
+          
+          {/* Latest Drawn Shape - only show when there's a recent drawing */}
+          {areaSqM !== 0 && riskScore !== 0 && (
+            <div className="bg-white p-4 rounded-lg border-2 border-blue-200 shadow-sm">
+              <h4 className="text-sm font-medium text-blue-700 mb-3 flex items-center">
+                🆕 Latest Drawn Shape
+              </h4>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Area:</span>
+                  <span className="font-medium text-blue-700">
+                    {areaSqM.toFixed(2)} m²
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Risk Score:</span>
+                  <span className="font-medium text-blue-700">
+                    {riskScore.toFixed(2)}/5.0
+                  </span>
+                </div>
+                <button 
+                  onClick={clearDrawnItems}
+                  className="w-full mt-2 px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                >
+                  Clear Drawing
+                </button>
+              </div>
+            </div>
+          )}
+
           <ExportButton 
             onExport={handleExport}
             disabled={!features.length}
           />
         </div>
       </div>
-      <MapControls 
-        map={mapInstanceRef.current} 
-        onShapeCreated={onShapeCreated} 
-      />
-      <MapLayersManager 
-        map={mapInstanceRef.current} 
-        currentMapLayer={currentMapLayer} 
-      />
-      <SearchLocationHandler 
-        map={mapInstanceRef.current} 
-        searchLocation={searchLocation} 
-      />
+      {mapInstance && (
+        <>
+          <MapControls 
+            map={mapInstance} 
+            onShapeCreated={onShapeCreated} 
+          />
+          <MapLayersManager 
+            map={mapInstance} 
+            currentMapLayer={currentMapLayer} 
+          />
+          <SearchLocationHandler 
+            map={mapInstance} 
+            searchLocation={searchLocation} 
+          />
+        </>
+      )}
     </>
-    {areaSqM !== 0 && riskScore !== 0 && (
-      <div className="mt-4 border-t pt-3">
-        <h4 className="text-sm font-medium text-gray-700 mb-2">🆕 Latest Drawn Shape</h4>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Area:</span>
-          <span className="font-medium">{areaSqM.toFixed(2)} m²</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Risk Score:</span>
-          <span className="font-medium">{riskScore.toFixed(2)}</span>
-        </div>
-      </div>
-    )}    
   );
 });
