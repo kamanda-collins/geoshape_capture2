@@ -1,13 +1,21 @@
-
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { MapControls } from './MapControls';
 import { MapLayersManager } from './MapLayers';
 import { SearchLocationHandler } from './SearchLocationHandler';
+import { ImportTabs } from '../Features/ImportTabs';
+import { SummaryPanel } from './SummaryPanel';
+import { ExportButton } from './ExportButton';
+import * as turf from '@turf/turf';
+import { getHuggingFaceToken, getEarthEngineToken } from '@/utils/env';
 
 declare global {
   interface Window {
     L: any;
   }
+}
+
+export interface MapContainerRef {
+  createBufferOnMap: (center: [number, number], radius: number) => void;
 }
 
 interface MapContainerProps {
@@ -18,37 +26,63 @@ interface MapContainerProps {
   searchLocation?: { lat: number; lng: number; name: string; boundingBox?: number[] };
 }
 
-export const MapContainer: React.FC<MapContainerProps> = ({
+export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
   onShapeCreated,
   features,
   currentMapLayer,
   onLayerChange,
-  searchLocation
-}) => {
+  searchLocation,
+}, ref) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
+  const [totalArea, setTotalArea] = useState(0);
+  const [featureTypes, setFeatureTypes] = useState<{ [key: string]: number }>({});
+  const [areaSqM, setAreaSqM] = useState(0);
+  const [riskScore, setRiskScore] = useState(0);
+  const drawnItemsRef = useRef<any>(null);
 
+  // Expose createBufferOnMap via ref
+  useImperativeHandle(ref, () => ({
+    createBufferOnMap,
+  }));
+
+  const handleShapeAnalyzed = (geojson: any) => {
+    const area = turf.area(geojson);
+    const risk = parseFloat((Math.random() * 5).toFixed(2)); // Dummy risk
+    setAreaSqM(area);
+    setRiskScore(risk);
+  };
+
+  // Function to create a buffer on the map
+  const createBufferOnMap = (center: [number, number], radius: number) => {
+    if (!mapInstanceRef.current) return;
+
+    try {
+      const token = getHuggingFaceToken();
+      if (!token) {
+        throw new Error('Hugging Face token not found');
+      }
+
+      const circle = window.L.circle(center, {
+        radius: radius,
+        color: '#3388ff',
+        fillColor: '#3388ff',
+        fillOpacity: 0.2
+      });
+
+      circle.addTo(mapInstanceRef.current);
+      
+      // Convert circle to GeoJSON and trigger shape creation
+      const geoJSON = circle.toGeoJSON();
+      onShapeCreated(geoJSON);
+    } catch (error) {
+      console.error('Error creating buffer:', error);
+    }
+  };
+
+  // Initialize map
   useEffect(() => {
-    console.log('MapContainer: Starting initialization');
-    console.log('MapContainer: mapRef.current:', mapRef.current);
-    console.log('MapContainer: window.L:', window.L);
-
-    if (!mapRef.current) {
-      console.error('MapContainer: Map container ref not available');
-      return;
-    }
-
-    if (!window.L) {
-      console.error('MapContainer: Leaflet library not loaded');
-      return;
-    }
-
-    // Clear any existing map
-    if (mapInstanceRef.current) {
-      console.log('MapContainer: Removing existing map');
-      mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
-    }
+    if (!mapRef.current || mapInstanceRef.current) return;
 
     try {
       console.log('MapContainer: Creating new map instance');
@@ -62,32 +96,41 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         preferCanvas: false
       });
 
-      console.log('MapContainer: Map instance created:', map);
-
       // Add tile layer immediately
       const tileLayer = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
       });
 
-      console.log('MapContainer: Adding tile layer');
       tileLayer.addTo(map);
+
+      // Initialize drawn items
+      const drawnItems = new window.L.FeatureGroup();
+      map.addLayer(drawnItems);
+      drawnItemsRef.current = drawnItems;
+
+      // Set up draw controls
+      map.on('draw:created', (e: any) => {
+        const layer = e.layer;
+        drawnItems.clearLayers();
+        drawnItems.addLayer(layer);
+
+        const geojson = layer.toGeoJSON();
+        handleShapeAnalyzed(geojson);
+      });
+
+      mapInstanceRef.current = map;
 
       // Force map to invalidate size after a short delay
       setTimeout(() => {
-        console.log('MapContainer: Invalidating map size');
         map.invalidateSize();
       }, 100);
-
-      mapInstanceRef.current = map;
-      console.log('MapContainer: Map initialized successfully');
 
     } catch (error) {
       console.error('MapContainer: Error initializing map:', error);
     }
 
     return () => {
-      console.log('MapContainer: Cleanup');
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -130,6 +173,82 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     });
   }, [features]);
 
+  // Calculate summary statistics when features change
+  useEffect(() => {
+    if (!features.length) {
+      setTotalArea(0);
+      setFeatureTypes({});
+      return;
+    }
+
+    let area = 0;
+    const types: { [key: string]: number } = {};
+
+    features.forEach(feature => {
+      try {
+        const geoJSON = JSON.parse(feature.geo);
+        // Calculate area using Leaflet's area calculation
+        if (mapInstanceRef.current && geoJSON.geometry) {
+          const layer = window.L.geoJSON(geoJSON);
+          if (typeof layer.getLayers()[0].getArea === 'function') {
+             const layerArea = layer.getLayers()[0].getArea();
+             area += layerArea;
+          } else {
+            console.warn('MapContainer: getArea() not available for this geometry type');
+          }
+        }
+
+        // Count feature types
+        const type = geoJSON.geometry?.type || 'unknown';
+        types[type] = (types[type] || 0) + 1;
+      } catch (e) {
+        console.error('Error calculating feature statistics:', e);
+      }
+    });
+
+    setTotalArea(area);
+    setFeatureTypes(types);
+  }, [features]);
+
+  const handleShapefileLoad = (geoJSON: any, filename: string) => {
+    if (!mapInstanceRef.current) return;
+
+    try {
+      const layer = window.L.geoJSON(geoJSON, {
+        style: {
+          color: '#3388ff',
+          fillColor: '#3388ff',
+          fillOpacity: 0.2,
+          weight: 2
+        }
+      });
+
+      layer.addTo(mapInstanceRef.current);
+      onShapeCreated(geoJSON);
+    } catch (error) {
+      console.error('Error loading shapefile:', error);
+    }
+  };
+
+  const handleExport = () => {
+    if (!features.length) return;
+
+    const exportData = features.map(feature => ({
+      ...feature,
+      geo: JSON.parse(feature.geo)
+    }));
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'map-export.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       <style>{`
@@ -155,14 +274,31 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           z-index: 800;
         }
       `}</style>
-      <div 
-        ref={mapRef} 
-        className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
-        style={{ 
-          minHeight: '500px',
-          backgroundColor: '#e5e7eb'
-        }}
-      />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-full">
+        <div className="md:col-span-3">
+          <div 
+            ref={mapRef} 
+            className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
+            style={{ 
+              minHeight: '500px',
+              backgroundColor: '#e5e7eb'
+            }}
+          />
+        </div>
+        <div className="space-y-4">
+          <SummaryPanel 
+            totalFeatures={features.length}
+            totalArea={totalArea}
+            featureTypes={featureTypes}
+            recentArea={areaSqM}
+            riskScore={riskScore}
+          />
+          <ExportButton 
+            onExport={handleExport}
+            disabled={!features.length}
+          />
+        </div>
+      </div>
       <MapControls 
         map={mapInstanceRef.current} 
         onShapeCreated={onShapeCreated} 
@@ -176,5 +312,18 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         searchLocation={searchLocation} 
       />
     </>
+    {areaSqM !== 0 && riskScore !== 0 && (
+      <div className="mt-4 border-t pt-3">
+        <h4 className="text-sm font-medium text-gray-700 mb-2">🆕 Latest Drawn Shape</h4>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Area:</span>
+          <span className="font-medium">{areaSqM.toFixed(2)} m²</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Risk Score:</span>
+          <span className="font-medium">{riskScore.toFixed(2)}</span>
+        </div>
+      </div>
+    )}    
   );
-};
+});
