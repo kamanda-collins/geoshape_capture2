@@ -1,8 +1,8 @@
-
 import React, { useRef, useEffect } from 'react';
 import { MapControls } from './MapControls';
 import { MapLayersManager } from './MapLayers';
 import { SearchLocationHandler } from './SearchLocationHandler';
+import { LocateMeButton } from './LocateMeButton'; // Add this import
 
 declare global {
   interface Window {
@@ -155,14 +155,25 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           z-index: 800;
         }
       `}</style>
-      <div 
-        ref={mapRef} 
-        className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
-        style={{ 
-          minHeight: '500px',
-          backgroundColor: '#e5e7eb'
-        }}
-      />
+      <div className="relative">
+        <div 
+          ref={mapRef} 
+          className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
+          style={{ 
+            minHeight: '500px',
+            backgroundColor: '#e5e7eb'
+          }}
+        />
+        <LocateMeButton
+          onLocate={(lat, lng) => {
+            if (mapInstanceRef.current) {
+              mapInstanceRef.current.setView([lat, lng], 15); // Zoom in on location
+              const marker = window.L.marker([lat, lng]).addTo(mapInstanceRef.current);
+              marker.bindPopup("📍 You are here").openPopup();
+            }
+          }} 
+        />
+      </div>
       <MapControls 
         map={mapInstanceRef.current} 
         onShapeCreated={onShapeCreated} 
