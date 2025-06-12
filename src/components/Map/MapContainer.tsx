@@ -1,8 +1,13 @@
-
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { MapControls } from './MapControls';
 import { MapLayersManager } from './MapLayers';
 import { SearchLocationHandler } from './SearchLocationHandler';
+import { LocateMeButton } from './LocateMeButton'; // Add this import
+import { ImportTabs } from '../Features/ImportTabs';
+import { SummaryPanel } from './SummaryPanel';
+import { ExportButton } from './ExportButton';
+import * as turf from '@turf/turf';
+import { getHuggingFaceToken, getEarthEngineToken } from '@/utils/env';
 
 declare global {
   interface Window {
@@ -37,13 +42,14 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
   const [areaSqM, setAreaSqM] = useState(0);
   const [riskScore, setRiskScore] = useState(0);
   const currentDrawnLayerRef = useRef<any>(null); // Keep reference to current drawn layer
+  const savedFeaturesLayerGroup = useRef<any>(null); // Separate layer group for saved features
 
   // Function to clear drawn items
   const clearDrawnItems = () => {
     if (mapInstance) {
       // Find the drawnItems layer that MapControls created
       mapInstance.eachLayer((layer: any) => {
-        if (layer instanceof window.L.FeatureGroup && layer !== mapInstance._layers[Object.keys(mapInstance._layers)[0]]) {
+        if (layer instanceof window.L.FeatureGroup && layer !== mapInstance._layers[Object.keys(mapInstance._layers)[0]] && layer !== savedFeaturesLayerGroup.current) {
           layer.clearLayers();
         }
       });
@@ -78,7 +84,7 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
       // Find and add to the MapControls drawnItems layer
       let drawnItemsLayer = null;
       mapInstance.eachLayer((layer: any) => {
-        if (layer instanceof window.L.FeatureGroup && layer._leaflet_id !== mapInstance._layers[Object.keys(mapInstance._layers)[0]]._leaflet_id) {
+        if (layer instanceof window.L.FeatureGroup && layer._leaflet_id !== mapInstance._layers[Object.keys(mapInstance._layers)[0]]._leaflet_id && layer !== savedFeaturesLayerGroup.current) {
           drawnItemsLayer = layer;
         }
       });
@@ -141,6 +147,11 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
 
       tileLayer.addTo(map);
 
+      // Create a separate layer group for saved features
+      const savedFeatures = window.L.layerGroup();
+      savedFeatures.addTo(map);
+      savedFeaturesLayerGroup.current = savedFeatures;
+
       // Don't create our own drawn items - let MapControls handle this
       // We'll listen for the MapControls events instead
 
@@ -196,30 +207,15 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
     };
   }, []);
 
-  // Display saved features on map (but don't interfere with drawn items)
+  // Display saved features on map using dedicated layer group
   useEffect(() => {
-    if (!mapInstance) return;
+    if (!mapInstance || !savedFeaturesLayerGroup.current) return;
 
     console.log('MapContainer: Adding features to map:', features.length);
 
-    // Clear existing feature layers (but preserve drawn items and base layers)
     try {
-      const layersToRemove: any[] = [];
-      
-      mapInstance.eachLayer((layer: any) => {
-        // Only remove layers that are saved features
-        // Don't touch FeatureGroups (drawnItems), tile layers, or the current drawn layer
-        if (layer.feature && 
-            !(layer instanceof window.L.FeatureGroup) &&
-            layer !== currentDrawnLayerRef.current) {
-          layersToRemove.push(layer);
-        }
-      });
-
-      // Remove the identified layers
-      layersToRemove.forEach(layer => {
-        mapInstance.removeLayer(layer);
-      });
+      // Clear only the saved features layer group
+      savedFeaturesLayerGroup.current.clearLayers();
 
       // Only add features if there are any
       if (features.length > 0) {
@@ -245,7 +241,9 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
                 <small>Created: ${new Date(feature.created_at).toLocaleDateString()}</small>
               </div>
             `);
-            layer.addTo(mapInstance);
+            
+            // Add to the dedicated saved features layer group
+            savedFeaturesLayerGroup.current.addLayer(layer);
           } catch (e) {
             console.error('MapContainer: Error parsing GeoJSON:', e);
           }
@@ -364,17 +362,17 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
         }}
       />
       <MapControls 
-        map={mapInstanceRef.current} 
+        map={mapInstance} 
         onShapeCreated={onShapeCreated} 
       />
       <MapLayersManager 
-        map={mapInstanceRef.current} 
+        map={mapInstance} 
         currentMapLayer={currentMapLayer} 
       />
       <SearchLocationHandler 
-        map={mapInstanceRef.current} 
+        map={mapInstance} 
         searchLocation={searchLocation} 
       />
     </>
   );
-};
+});
