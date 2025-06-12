@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +15,7 @@ import { AnalyticsDashboard } from '@/components/Analytics/AnalyticsDashboard';
 import { ExportButton } from '@/components/Export/ExportButton';
 import { useFeatures } from '@/hooks/useFeatures';
 import { useToast } from '@/hooks/use-toast';
+import { CoordinateInput } from '@/components/Map/CoordinateInput';
 
 const ADMIN_EMAIL = 'admin@geoshape.com'; // Replace with your email
 
@@ -25,9 +25,17 @@ const IndexContent = () => {
   const [currentShape, setCurrentShape] = useState<any>(null);
   const [searchLocation, setSearchLocation] = useState<{lat: number; lng: number; name: string; boundingBox?: number[]} | undefined>();
   
-  const { user, signOut } = useAuth();
-  const { features } = useFeatures();
+  const { user, signOut, loading: authLoading } = useAuth();
+  const { features, loading: featuresLoading } = useFeatures();
   const { toast } = useToast();
+
+  if (authLoading || featuresLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   const handleLocationSelect = (lat: number, lng: number, name: string, boundingBox?: number[]) => {
     console.log('Location selected:', { lat, lng, name, boundingBox });
@@ -44,11 +52,14 @@ const IndexContent = () => {
   };
 
   const handleShapeCreated = (geoJSON: any) => {
-    setCurrentShape(geoJSON);
+    if (geoJSON) {
+      setCurrentShape(geoJSON);
+    }
   };
 
   const handleClearShape = () => {
     setCurrentShape(null);
+    setSearchLocation(undefined);
   };
 
   const handleSignOut = async () => {
@@ -61,6 +72,10 @@ const IndexContent = () => {
 
   const handleExport = (format: 'pdf' | 'png' | 'geojson') => {
     console.log(`Exported as ${format}`);
+  };
+
+  const handleBufferCreate = (center: [number, number], radius: number) => {
+    console.log(`Creating buffer at ${center} with radius ${radius}`);
   };
 
   const isAdmin = user?.email === ADMIN_EMAIL;
@@ -119,6 +134,7 @@ const IndexContent = () => {
                     currentMapLayer={currentMapLayer}
                     onLayerChange={handleLayerChange}
                     searchLocation={searchLocation}
+                    onBufferCreate={handleBufferCreate}
                   />
                 </div>
               </Card>
@@ -127,6 +143,8 @@ const IndexContent = () => {
 
           {/* Controls Section */}
           <div className="space-y-4">
+            <CoordinateInput onBufferCreate={handleBufferCreate} />
+            
             <MapLayers 
               onLayerChange={handleLayerChange}
               currentLayer={currentMapLayer}
