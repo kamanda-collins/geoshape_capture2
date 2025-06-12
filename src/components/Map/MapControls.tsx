@@ -1,5 +1,4 @@
 import React from 'react';
-import { supabase } from '@/integrations/supabase/client'; // Supabase client
 
 declare global {
   interface Window {
@@ -13,43 +12,21 @@ interface MapControlsProps {
 }
 
 export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated }) => {
-  let scaleControl: any;
-  let drawnItems: any;
+  const drawnItemsRef = React.useRef<any>(null);
+  const scaleControlRef = React.useRef<any>(null);
+  const drawControlRef = React.useRef<any>(null);
 
   React.useEffect(() => {
     if (!map) return;
 
-    // Initialize drawn items layer group
-    drawnItems = new window.L.FeatureGroup();
-    map.addLayer(drawnItems);
-
-    // Fetch and render saved shapes from Supabase
-    const fetchAndRenderShapes = async () => {
-      const { data, error } = await supabase.from('features').select('*');
-
-      if (error) {
-        console.error('❌ Error fetching features:', error.message);
-        return;
-      }
-
-      console.log('✅ Fetched features:', data);
-
-      data.forEach((feature) => {
-        try {
-          const geoLayer = window.L.geoJSON(feature.geojson);
-          geoLayer.addTo(drawnItems); // Add to group, not directly to map
-        } catch (err) {
-          console.error('❌ Error rendering shape:', err);
-        }
-      });
-    };
-
-    fetchAndRenderShapes();
+    // Create ONLY the temporary drawing layer (not for saved features)
+    drawnItemsRef.current = new window.L.FeatureGroup();
+    map.addLayer(drawnItemsRef.current);
 
     // Configure Leaflet draw controls
     const drawControl = new window.L.Control.Draw({
       edit: {
-        featureGroup: drawnItems,
+        featureGroup: drawnItemsRef.current,
         remove: true,
         edit: true
       },
@@ -99,6 +76,7 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
       }
     });
 
+    drawControlRef.current = drawControl;
     map.addControl(drawControl);
 
     // Drawing cursor indicators
@@ -115,7 +93,13 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
     // When a new shape is created
     map.on(window.L.Draw.Event.CREATED, (event: any) => {
       const layer = event.layer;
-      drawnItems.addLayer(layer);
+      
+      // Clear any existing temporary drawings first
+      drawnItemsRef.current.clearLayers();
+      
+      // Add the new layer
+      drawnItemsRef.current.addLayer(layer);
+      
       const geoJSON = layer.toGeoJSON();
       onShapeCreated(geoJSON);
 
@@ -132,32 +116,54 @@ export const MapControls: React.FC<MapControlsProps> = ({ map, onShapeCreated })
       });
     });
 
-    // On shape delete
+    // On shape delete - only clear temporary drawings
     map.on(window.L.Draw.Event.DELETED, () => {
-      console.log('Shapes deleted by user');
-      drawnItems.clearLayers(); // clear from map
-      onShapeCreated(null);     // reset shape state
+      console.log('Temporary shapes deleted by user');
+      drawnItemsRef.current.clearLayers();
+      onShapeCreated(null);
     });
 
     // Add scale bar
-    scaleControl = window.L.control.scale({
+    scaleControlRef.current = window.L.control.scale({
       position: 'bottomleft',
       metric: true,
       imperial: true
     });
-    scaleControl.addTo(map);
+    scaleControlRef.current.addTo(map);
 
     // Cleanup
     return () => {
       if (map) {
-        map.removeControl(drawControl);
-        if (scaleControl) map.removeControl(scaleControl);
-        if (drawnItems) map.removeLayer(drawnItems);
+        if (drawControlRef.current) {
+          map.removeControl(drawControlRef.current);
+        }
+        if (scaleControlRef.current) {
+          map.removeControl(scaleControlRef.current);
+        }
+        if (drawnItemsRef.current) {
+          map.removeLayer(drawnItemsRef.current);
+        }
+        
+        // Remove event listeners
+        map.off('draw:drawstart');
+        map.off('draw:drawstop');
+        map.off(window.L.Draw.Event.CREATED);
+        map.off(window.L.Draw.Event.EDITED);
+        map.off(window.L.Draw.Event.DELETED);
+        
         map.getContainer().style.cursor = '';
         map.getContainer().classList.remove('drawing-active');
       }
     };
   }, [map, onShapeCreated]);
+
+  // Expose the drawnItems reference for MapContainer to use
+  React.useEffect(() => {
+    if (map && drawnItemsRef.current) {
+      // Store reference on map instance for MapContainer to access
+      map._drawnItems = drawnItemsRef.current;
+    }
+  }, [map]);
 
   return null;
 };

@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } f
 import { MapControls } from './MapControls';
 import { MapLayersManager } from './MapLayers';
 import { SearchLocationHandler } from './SearchLocationHandler';
-import { LocateMeButton } from './LocateMeButton'; // Add this import
+import { LocateMeButton } from './LocateMeButton';
 import { ImportTabs } from '../Features/ImportTabs';
 import { SummaryPanel } from './SummaryPanel';
 import { ExportButton } from './ExportButton';
@@ -41,22 +41,16 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
   const [featureTypes, setFeatureTypes] = useState<{ [key: string]: number }>({});
   const [areaSqM, setAreaSqM] = useState(0);
   const [riskScore, setRiskScore] = useState(0);
-  const currentDrawnLayerRef = useRef<any>(null); // Keep reference to current drawn layer
-  const savedFeaturesLayerGroup = useRef<any>(null); // Separate layer group for saved features
+  
+  // Only track saved features - let MapControls handle temporary drawings
+  const savedFeaturesLayerGroup = useRef<any>(null);
 
-  // Function to clear drawn items
+  // Function to clear only temporary drawn items (not saved features)
   const clearDrawnItems = () => {
-    if (mapInstance) {
-      // Find the drawnItems layer that MapControls created
-      mapInstance.eachLayer((layer: any) => {
-        if (layer instanceof window.L.FeatureGroup && layer !== mapInstance._layers[Object.keys(mapInstance._layers)[0]] && layer !== savedFeaturesLayerGroup.current) {
-          layer.clearLayers();
-        }
-      });
+    if (mapInstance && mapInstance._drawnItems) {
+      mapInstance._drawnItems.clearLayers();
     }
-    if (currentDrawnLayerRef.current) {
-      currentDrawnLayerRef.current = null;
-    }
+    // Reset temporary drawing stats
     setAreaSqM(0);
     setRiskScore(0);
   };
@@ -66,12 +60,7 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
     if (!mapInstance) return;
 
     try {
-      const token = getHuggingFaceToken();
-      if (!token) {
-        throw new Error('Hugging Face token not found');
-      }
-
-      // Clear previous drawn items first
+      // Clear previous temporary drawings first
       clearDrawnItems();
 
       const circle = window.L.circle(center, {
@@ -81,21 +70,12 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
         fillOpacity: 0.2
       });
 
-      // Find and add to the MapControls drawnItems layer
-      let drawnItemsLayer = null;
-      mapInstance.eachLayer((layer: any) => {
-        if (layer instanceof window.L.FeatureGroup && layer._leaflet_id !== mapInstance._layers[Object.keys(mapInstance._layers)[0]]._leaflet_id && layer !== savedFeaturesLayerGroup.current) {
-          drawnItemsLayer = layer;
-        }
-      });
-
-      if (drawnItemsLayer) {
-        drawnItemsLayer.addLayer(circle);
+      // Add to MapControls' drawnItems layer
+      if (mapInstance._drawnItems) {
+        mapInstance._drawnItems.addLayer(circle);
       } else {
         circle.addTo(mapInstance);
       }
-      
-      currentDrawnLayerRef.current = circle;
       
       // Convert circle to GeoJSON and trigger shape creation
       const geoJSON = circle.toGeoJSON();
@@ -130,61 +110,48 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
     try {
       console.log('MapContainer: Creating new map instance');
       
-      // Initialize map with explicit options
       const map = window.L.map(mapRef.current, {
-        center: [40.7128, -74.0060], // New York coordinates
+        center: [40.7128, -74.0060],
         zoom: 10,
         zoomControl: true,
         attributionControl: true,
         preferCanvas: false
       });
 
-      // Add tile layer immediately
-      const tileLayer = window.L.tileLayer('https://{s}.tile.openstreetMap.org/{z}/{x}/{y}.png', {
+      // Add tile layer
+      const tileLayer = window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
       });
-
       tileLayer.addTo(map);
 
-      // Create a separate layer group for saved features
+      // Create layer group ONLY for saved features (not temporary drawings)
       const savedFeatures = window.L.layerGroup();
       savedFeatures.addTo(map);
       savedFeaturesLayerGroup.current = savedFeatures;
 
-      // Don't create our own drawn items - let MapControls handle this
-      // We'll listen for the MapControls events instead
-
       // Listen for draw events from MapControls
       map.on(window.L.Draw.Event.CREATED, (e: any) => {
         const layer = e.layer;
-        currentDrawnLayerRef.current = layer;
-
         const geojson = layer.toGeoJSON();
         handleShapeAnalyzed(geojson);
       });
 
-      // Listen for edit events
       map.on(window.L.Draw.Event.EDITED, (e: any) => {
         const layers = e.layers;
         layers.eachLayer((layer: any) => {
-          currentDrawnLayerRef.current = layer;
           const geojson = layer.toGeoJSON();
           handleShapeAnalyzed(geojson);
         });
       });
 
-      // Listen for delete events
       map.on(window.L.Draw.Event.DELETED, () => {
-        currentDrawnLayerRef.current = null;
         setAreaSqM(0);
         setRiskScore(0);
       });
 
-      // Set the map instance in state (this will trigger re-renders)
       setMapInstance(map);
 
-      // Force map to invalidate size after a short delay
       setTimeout(() => {
         if (map && map.getContainer()) {
           map.invalidateSize();
@@ -207,17 +174,16 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
     };
   }, []);
 
-  // Display saved features on map using dedicated layer group
+  // Display ONLY saved features (not temporary drawings)
   useEffect(() => {
     if (!mapInstance || !savedFeaturesLayerGroup.current) return;
 
-    console.log('MapContainer: Adding features to map:', features.length);
+    console.log('MapContainer: Adding saved features to map:', features.length);
 
     try {
-      // Clear only the saved features layer group
+      // Clear only saved features layer
       savedFeaturesLayerGroup.current.clearLayers();
 
-      // Only add features if there are any
       if (features.length > 0) {
         features.forEach((feature, index) => {
           try {
@@ -242,15 +208,15 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
               </div>
             `);
             
-            // Add to the dedicated saved features layer group
+            // Add only to saved features layer
             savedFeaturesLayerGroup.current.addLayer(layer);
           } catch (e) {
-            console.error('MapContainer: Error parsing GeoJSON:', e);
+            console.error('MapContainer: Error parsing saved feature GeoJSON:', e);
           }
         });
       }
     } catch (error) {
-      console.error('Error updating features on map:', error);
+      console.error('Error updating saved features on map:', error);
     }
   }, [features, mapInstance]);
 
@@ -268,12 +234,9 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
     features.forEach(feature => {
       try {
         const geoJSON = JSON.parse(feature.geo);
-        
-        // Use turf.js for consistent area calculation
         const featureArea = turf.area(geoJSON);
         area += featureArea;
 
-        // Count feature types
         const type = geoJSON.geometry?.type || 'unknown';
         types[type] = (types[type] || 0) + 1;
       } catch (e) {
@@ -298,7 +261,13 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
         }
       });
 
-      layer.addTo(mapInstance);
+      // Add to temporary drawing layer
+      if (mapInstance._drawnItems) {
+        mapInstance._drawnItems.addLayer(layer);
+      } else {
+        layer.addTo(mapInstance);
+      }
+      
       onShapeCreated(geoJSON);
     } catch (error) {
       console.error('Error loading shapefile:', error);
@@ -355,6 +324,7 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
       `}</style>
       <div 
         ref={mapRef} 
+        id="map"
         className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200" 
         style={{ 
           minHeight: '500px',
@@ -373,6 +343,8 @@ export const MapContainer = forwardRef<MapContainerRef, MapContainerProps>(({
         map={mapInstance} 
         searchLocation={searchLocation} 
       />
+      <LocateMeButton map={mapInstance} />
+      <ExportButton onExport={handleExport} disabled={!features.length} />
     </>
   );
 });
