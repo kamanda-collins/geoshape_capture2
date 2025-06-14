@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { User, LogOut, MessageSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/components/Auth/AuthProvider';
 import { AuthModal } from '@/components/Auth/AuthModal';
-import { MapContainer } from '@/components/Map/MapContainer';
+import { MapContainer, type MapContainerRef } from '@/components/Map/MapContainer';
 import { MapCreator } from '@/components/Map/MapCreator';
 import { MapLayers } from '@/components/MapLayers';
 import { SearchBar } from '@/components/SearchBar';
@@ -20,13 +20,14 @@ import { CoordinateInput } from '@/components/Map/CoordinateInput';
 const ADMIN_EMAIL = 'admin@geoshape.com'; // Replace with your email
 
 const IndexContent = () => {
+  const mapContainerRef = useRef<MapContainerRef>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [currentMapLayer, setCurrentMapLayer] = useState('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
   const [currentShape, setCurrentShape] = useState<any>(null);
   const [searchLocation, setSearchLocation] = useState<{lat: number; lng: number; name: string; boundingBox?: number[]} | undefined>();
   
   const { user, signOut, loading: authLoading } = useAuth();
-  const { features, loading: featuresLoading } = useFeatures();
+  const { features, loading: featuresLoading, saveFeature } = useFeatures();
   const { toast } = useToast();
 
   if (authLoading || featuresLoading) {
@@ -51,9 +52,21 @@ const IndexContent = () => {
     console.log('Shapefile loaded:', { geoJSON, filename });
   };
 
-  const handleShapeCreated = (geoJSON: any) => {
+  const handleShapeCreated = async (geoJSON: any) => {
     if (geoJSON) {
       setCurrentShape(geoJSON);
+      try {
+        await saveFeature({ name: 'Drawn Shape', geo: JSON.stringify(geoJSON) });
+        mapContainerRef.current?.clearDrawnItems();
+      } catch (error) {
+        console.error("Error saving feature or clearing drawn items:", error);
+        // Optionally, show a toast to the user
+        toast({
+          title: "Error",
+          description: "Could not save the shape. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -129,6 +142,7 @@ const IndexContent = () => {
               <Card className="p-4 h-[600px] relative">
                 <div className="relative z-0">
                   <MapContainer
+                    ref={mapContainerRef}
                     onShapeCreated={handleShapeCreated}
                     features={features}
                     currentMapLayer={currentMapLayer}
